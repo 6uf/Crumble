@@ -140,7 +140,6 @@ func SnipeDefault(name string) {
 						}
 						Authing = false
 					}
-					time.Sleep(time.Duration(Con.SpreadPerAccount) * time.Millisecond)
 					if Taken {
 						GotName <- fmt.Sprintf("[%v] has become unavailable [%v]", name, time.Now().Unix())
 						return
@@ -149,6 +148,7 @@ func SnipeDefault(name string) {
 						GotName <- "Terminated out of process for " + name
 					}
 				}
+				time.Sleep(time.Duration(Con.SpreadPerAccount) * time.Millisecond)
 			}
 		}()
 	} else {
