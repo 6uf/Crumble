@@ -17,8 +17,14 @@ import (
 
 func init() {
 	apiGO.Clear()
+	fmt.Print(`___________________ 
+\_   ___ \______   \
+/    \  \/|       _/
+\     \___|    |   \
+ \______  /____|_  / 
+    	\/       \/
+`)
 	src.Con.LoadState()
-
 	// Checks if a file doesnt exist and creates it.
 	if file_name := "accounts.txt"; src.CheckForValidFile(file_name) {
 		os.Create(file_name)
@@ -35,23 +41,11 @@ func init() {
 	if _, err := os.Stat("logs"); os.IsNotExist(err) {
 		os.MkdirAll("logs/names", 0755)
 	}
-
 	src.Proxy.GetProxys(false, nil)
 	src.Proxy.Setup()
 	src.AuthAccs()
-
-	//GenProxysAndStoreForUsage()
-	//go SendAlive()
-
+	go src.GenProxysAndStoreForUsage()
 	go src.CheckAccs()
-
-	fmt.Print(`___________________ 
-\_   ___ \______   \
-/    \  \/|       _/
-\     \___|    |   \
- \______  /____|_  / 
-        \/       \/
-`)
 	if src.Con.DiscordID == "" {
 		fmt.Print("Please enter your discord id for identification: ")
 		fmt.Scan(&src.Con.DiscordID)
@@ -89,8 +83,8 @@ func GetDiscordUsername(ID string) string {
 
 func main() {
 	app := StrCmd.App{
-		Version:        "v3.0.5b",
-		AppDescription: "This build is EXPERIMENTAL! | Welcome to abysal, this src is apart of its Private Sniper branch.",
+		Version:        "v3.1.0",
+		AppDescription: "Welcome to Crumble!!!",
 		Commands: map[string]StrCmd.Command{
 			"config": {
 				Action: func() {

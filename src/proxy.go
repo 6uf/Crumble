@@ -22,36 +22,30 @@ type SniperProxy struct {
 
 var Test []SniperProxy
 
-func SendAlive() {
+func GenProxysAndStoreForUsage() {
 	for {
-		for i, conns := range Test {
-			go func(conns SniperProxy, i int) {
-				if conns.Alive {
-					fmt.Fprintf(conns.Proxy, "GET /minecraft/profile HTTP/1.1\r\nHost: api.minecraftservices.com\r\nUser-Agent: Abysal/1.1\r\n\r\n")
-					buf := make([]byte, 4000)
-					conns.Proxy.Read(buf)
-					if string(buf)[9:12] == "" {
-						Test[i].Alive = false
+		var wg sync.WaitGroup
+		for i, acc := range Proxy.Proxys {
+			wg.Add(1)
+			go func(acc string, i int) {
+				var Found bool
+				if con := Connect(acc); con.Proxy != nil {
+					for i, Con := range Test {
+						if Con.ProxyDetails.IP == strings.Split(acc, ":")[0] {
+							Found = true
+							Test[i] = con
+						}
+					}
+					if !Found {
+						Test = append(Test, con)
 					}
 				}
-			}(conns, i)
+				wg.Done()
+			}(acc, i)
 		}
-		time.Sleep(10 * time.Second)
+		wg.Wait()
+		time.Sleep(15 * time.Second)
 	}
-}
-
-func GenProxysAndStoreForUsage() {
-	var wg sync.WaitGroup
-	for i, acc := range Proxy.Proxys {
-		wg.Add(1)
-		go func(acc string, i int) {
-			if con := Connect(acc); con.Proxy != nil {
-				Test = append(Test, con)
-			}
-			wg.Done()
-		}(acc, i)
-	}
-	wg.Wait()
 }
 
 func Connect(acc string) SniperProxy {
