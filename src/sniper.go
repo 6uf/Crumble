@@ -61,11 +61,6 @@ func SnipeDefault(name string) {
 		}
 	}()
 
-	fmt.Println(len(Accs))
-
-	SpreadPerAcc := len(Accs) * 250
-	fmt.Println(SpreadPerAcc)
-
 	if len(Proxy.Proxys) != 0 {
 		go func() {
 			ReqAmt := 0
