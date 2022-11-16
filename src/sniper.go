@@ -77,7 +77,7 @@ func SnipeDefault(name string) {
 									for o := 0; int64(o) < Con.ReqAmtPerAcc; o++ {
 										Req := apiGO.Details{ResponseDetails: apiGO.SocketSending(proxy.Proxy, ReturnPayload(Config.AccountType, Config.Bearer, name)), Bearer: Config.Bearer, Email: Config.Email, Type: Config.AccountType, Info: Config.Info}
 										ReqAmt++
-										body := fmt.Sprintf("[%v] (%v) %v - %v (%v)\n", time.Now().Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Req.Email[:4], proxy.ProxyDetails.IP[:5]+strings.Repeat("*", 5), ReqAmt)
+										body := fmt.Sprintf("[%v] (%v:%v) %v - %v (%v)\n", time.Now().Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, name, Req.Email[:4], proxy.ProxyDetails.IP[:5]+strings.Repeat("*", 5), ReqAmt)
 										fmt.Print(body)
 										WriteToLogs(name, body)
 										switch Req.ResponseDetails.StatusCode {
@@ -182,56 +182,3 @@ func GetHeadUrl(name string) string {
 	}
 	return "https://s.namemc.com/2d/skin/face.png?id=23ba96021149f38e&scale=4"
 }
-
-/*
-	if proxy := Connect(Proxy.CompRand()); proxy.Proxy != nil {
-		for o := 0; int64(o) < Con.ReqAmtPerAcc; o++ {
-			go func(Config apiGO.Info, e, i int) {
-				Req := apiGO.Details{ResponseDetails: apiGO.SocketSending(proxy.Proxy, ReturnPayload(Config.AccountType, Config.Bearer, name)), Bearer: Config.Bearer, Email: Config.Email, Type: Config.AccountType, Info: Config.Info}
-				ReqAmt++
-				body := fmt.Sprintf("[%v] (%v) %v - %v (%v)\n", time.Now().Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Req.Email[:4], proxy.ProxyDetails.IP[:5]+strings.Repeat("*", 5), ReqAmt)
-				fmt.Print(body)
-				WriteToLogs(name, body)
-				switch Req.ResponseDetails.StatusCode {
-				case "200":
-					if Con.SkinChange.Link != "" {
-						apiGO.ChangeSkin(apiGO.JsonValue(Con.SkinChange), Req.Bearer)
-					}
-					fmt.Printf("[%v] Succesful - %v %v\n", name, Req.Email, apiGO.NameMC(Req.Bearer))
-					GotName <- fmt.Sprintf("[%v] Succesful - %v %v", name, Req.Email, apiGO.NameMC(Req.Bearer))
-					new, list, Accz := []apiGO.Bearers{}, []apiGO.Info{}, []string{}
-					for _, Accs := range Con.Bearers {
-						if Req.Email != Accs.Email {
-							new = append(new, Accs)
-						}
-					}
-					Con.Bearers = new
-					for _, Accs := range Con.Bearers {
-						for _, Acc := range Bearer.Details {
-							if Acc.Email != Accs.Email {
-								list = append(list, Acc)
-							}
-						}
-					}
-					Bearer.Details = list
-					file, _ := os.Open("accounts.txt")
-					defer file.Close()
-					scanner := bufio.NewScanner(file)
-					for scanner.Scan() {
-						if strings.Split(scanner.Text(), ":")[0] != Req.Email {
-							Accz = append(Accz, scanner.Text())
-						}
-					}
-					Rewrite("accounts.txt", strings.Join(Accz, "\n"))
-					Con.SaveConfig()
-					Con.LoadState()
-				case "401":
-					fmt.Printf("[%v] %v came up invalid, reauthing..\n", Req.ResponseDetails.StatusCode, HashMessage(Req.Email, len(Req.Email)/4))
-					Authing = true
-					Accs[e][i].Error = "AuthRequired"
-				}
-			}(Config, e, i)
-			time.Sleep(time.Duration(Con.SpreadPerSend) * time.Millisecond)
-		}
-	}
-*/
