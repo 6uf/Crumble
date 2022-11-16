@@ -11,8 +11,8 @@ import (
 
 	"github.com/6uf/apiGO"
 	"github.com/6uf/h2"
-	tls2 "github.com/Carcraftz/utls"
 	"github.com/PuerkitoBio/goquery"
+	tls2 "github.com/refraction-networking/utls"
 )
 
 func ReturnPayload(acc, bearer, name string) string {
@@ -64,7 +64,7 @@ func GetDroptimes(name string) (int64, int64) {
 	var begin, end int64
 	go func() {
 		if conn, err := (&h2.Client{Config: h2.GetDefaultConfig()}).Connect("https://namemc.com/search?q="+name, h2.ReqConfig{ID: 1, BuildID: tls2.HelloChrome_100}); err == nil {
-			if resp, err := conn.Do(h2.MethodGet, "", nil); err == nil && resp.Status == "200" {
+			if resp, err := conn.Do(h2.MethodGet, "", "", nil); err == nil && resp.Status == "200" {
 				doc, _ := goquery.NewDocumentFromReader(bytes.NewBuffer(resp.Data))
 				if b, ok := doc.Find(`#availability-time`).Attr("datetime"); ok {
 					if e, ok := doc.Find(`#availability-time2`).Attr("datetime"); ok {
