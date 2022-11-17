@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/6uf/StrCmd v0.0.0-20221010202738-6901be41e86a
-	github.com/6uf/apiGO v0.0.0-20221115194436-dc3791c75d9f
+	github.com/6uf/apiGO v0.0.0-20221117010549-78fee545e770
 	github.com/6uf/h2 v0.0.0-20221116002903-f88433c8fd62
 	github.com/PuerkitoBio/goquery v1.8.0
 	github.com/refraction-networking/utls v1.1.5

@@ -60,34 +60,21 @@ func Rewrite(path, accounts string) {
 }
 
 func GetDroptimes(name string) (int64, int64) {
-	start := time.Now()
-	var begin, end int64
-	go func() {
-		if conn, err := (&h2.Client{Config: h2.GetDefaultConfig()}).Connect("https://namemc.com/search?q="+name, h2.ReqConfig{ID: 1, BuildID: tls2.HelloChrome_100}); err == nil {
-			if resp, err := conn.Do(h2.MethodGet, "", "", nil); err == nil && resp.Status == "200" {
-				doc, _ := goquery.NewDocumentFromReader(bytes.NewBuffer(resp.Data))
-				if b, ok := doc.Find(`#availability-time`).Attr("datetime"); ok {
-					if e, ok := doc.Find(`#availability-time2`).Attr("datetime"); ok {
-						if t1, err := time.Parse(time.RFC3339, b); err == nil {
-							if t2, err := time.Parse(time.RFC3339, e); err == nil {
-								begin, end = t1.Unix(), t2.Unix()
-							}
+	if conn, err := (&h2.Client{Config: h2.GetDefaultConfig()}).Connect("https://namemc.com/search?q="+name, h2.ReqConfig{ID: 1, BuildID: tls2.HelloChrome_100}); err == nil {
+		if resp, err := conn.Do(h2.MethodGet, "", "", nil); err == nil && resp.Status == "200" {
+			doc, _ := goquery.NewDocumentFromReader(bytes.NewBuffer(resp.Data))
+			if b, ok := doc.Find(`#availability-time`).Attr("datetime"); ok {
+				if e, ok := doc.Find(`#availability-time2`).Attr("datetime"); ok {
+					if t1, err := time.Parse(time.RFC3339, b); err == nil {
+						if t2, err := time.Parse(time.RFC3339, e); err == nil {
+							return t1.Unix(), t2.Unix()
 						}
 					}
 				}
 			}
 		}
-	}()
-	for {
-		if begin != 0 && end != 0 {
-			return begin, end
-		} else {
-			if time.Since(start) > 10*time.Second {
-				return 0, 0
-			}
-			time.Sleep(500 * time.Millisecond)
-		}
 	}
+	return 0, 0
 }
 
 func Update(new apiGO.Info) {

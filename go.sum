@@ -2,6 +2,8 @@ github.com/6uf/StrCmd v0.0.0-20221010202738-6901be41e86a h1:wQNY7wT+rq1oouE5azV5
 github.com/6uf/StrCmd v0.0.0-20221010202738-6901be41e86a/go.mod h1:P5gRFHF9bRtztq7gsH2eJeD6ATXTBBxM3i8n4Tpe/bw=
 github.com/6uf/apiGO v0.0.0-20221115194436-dc3791c75d9f h1:VlplhSEpg0bYPQKQQ/u7UiQ6fTUhHPXyUMJaqQdsZXY=
 github.com/6uf/apiGO v0.0.0-20221115194436-dc3791c75d9f/go.mod h1:YZhnKsWG7xxiO/J4GM+3tRfm45ZlWnMN1+Ag0m2kQW8=
+github.com/6uf/apiGO v0.0.0-20221117010549-78fee545e770 h1:1zI9zuGpHFsWmDtrHqlUGTsC/dcre02vzxisGnAclWQ=
+github.com/6uf/apiGO v0.0.0-20221117010549-78fee545e770/go.mod h1:YZhnKsWG7xxiO/J4GM+3tRfm45ZlWnMN1+Ag0m2kQW8=
 github.com/6uf/h2 v0.0.0-20221114215441-fd4e9c1079b3 h1:wxECnGwceHiudM/OeFr9pO3KUN+vNj0D5SRSA9rieqw=
 github.com/6uf/h2 v0.0.0-20221114215441-fd4e9c1079b3/go.mod h1:nUZ28fb1W1An4luvsySvRn3H1kx8L9mnm1ocY5kHixc=
 github.com/6uf/h2 v0.0.0-20221115004807-ae001a1f5078 h1:LpIdsMXg1bvzQxPetTbinACLRhLoNRFx5R0wbT/INSo=
