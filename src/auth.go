@@ -78,7 +78,7 @@ func grabDetails(AccountsVer []string) []string {
 						case info.Error != "":
 							fmt.Printf("Account %v came up Invalid: %v\n", info.Email, info.Error)
 						case info.Bearer != "" && apiGO.CheckChange(info.Bearer):
-							fmt.Printf("[%v] Succesfully authed %v\n", time.Now().UnixMilli(), HashMessage(info.Email, len(info.Email)/4))
+							fmt.Printf("[%v] Succesfully authed %v\n", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))
 							Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 								Bearer:       info.Bearer,
 								AuthInterval: 86400,
@@ -100,7 +100,7 @@ func grabDetails(AccountsVer []string) []string {
 					case info.Error != "":
 						fmt.Printf("Account %v came up Invalid: %v\n", info.Email, info.Error)
 					case info.Bearer != "" && apiGO.CheckChange(info.Bearer):
-						fmt.Printf("[%v] Succesfully authed %v\n", time.Now().UnixMilli(), HashMessage(info.Email, len(info.Email)/4))
+						fmt.Printf("[%v] Succesfully authed %v\n", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))
 						Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 							Bearer:       info.Bearer,
 							AuthInterval: 86400,
@@ -153,7 +153,7 @@ func grabDetails(AccountsVer []string) []string {
 						case info.Error != "":
 							fmt.Printf("Account %v came up Invalid: %v\n", info.Email, info.Error)
 						case info.Bearer != "" && apiGO.CheckChange(info.Bearer):
-							fmt.Printf("[%v] Succesfully authed %v\n", time.Now().UnixMilli(), HashMessage(info.Email, len(info.Email)/4))
+							fmt.Printf("[%v] Succesfully authed %v\n", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))
 							Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 								Bearer:       info.Bearer,
 								AuthInterval: 86400,
@@ -175,7 +175,7 @@ func grabDetails(AccountsVer []string) []string {
 					case info.Error != "":
 						fmt.Printf("Account %v came up Invalid: %v\n", info.Email, info.Error)
 					case info.Bearer != "" && apiGO.CheckChange(info.Bearer):
-						fmt.Printf("[%v] Succesfully authed %v\n", time.Now().UnixMilli(), HashMessage(info.Email, len(info.Email)/4))
+						fmt.Printf("[%v] Succesfully authed %v\n", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))
 						Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 							Bearer:       info.Bearer,
 							AuthInterval: 86400,
@@ -246,7 +246,7 @@ func checkifValid(AccountsVer []string) []string {
 						case info.Error != "":
 							fmt.Printf("Account %v came up Invalid: %v\n", info.Email, info.Error)
 						case info.Bearer != "" && apiGO.CheckChange(info.Bearer):
-							fmt.Printf("[%v] Succesfully authed %v\n", time.Now().UnixMilli(), HashMessage(info.Email, len(info.Email)/4))
+							fmt.Printf("[%v] Succesfully authed %v\n", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))
 							Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 								Bearer:       info.Bearer,
 								AuthInterval: 86400,
@@ -268,7 +268,7 @@ func checkifValid(AccountsVer []string) []string {
 					case info.Error != "":
 						fmt.Printf("Account %v came up Invalid: %v\n", info.Email, info.Error)
 					case info.Bearer != "" && apiGO.CheckChange(info.Bearer):
-						fmt.Printf("[%v] Succesfully authed %v\n", time.Now().UnixMilli(), HashMessage(info.Email, len(info.Email)/4))
+						fmt.Printf("[%v] Succesfully authed %v\n", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))
 						Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 							Bearer:       info.Bearer,
 							AuthInterval: 86400,
