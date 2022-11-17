@@ -19,7 +19,6 @@ func SnipeDefault(name string) {
 	var Accs [][]apiGO.Info
 	var incr int
 	var use int
-	var Authing bool
 	for _, Acc := range Bearer.Details {
 		if len(Accs) == 0 {
 			Accs = append(Accs, []apiGO.Info{
@@ -40,6 +39,8 @@ func SnipeDefault(name string) {
 	GotName, Terminate, Taken, c := make(chan string), false, IsAvailable(name), make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 
+	ClaimedIGN := false
+
 	go func() {
 		<-c
 		signal.Stop(c)
@@ -57,9 +58,11 @@ func SnipeDefault(name string) {
 			for !IsAvailable(name) {
 				time.Sleep(10 * time.Second)
 			}
-			GotName <- fmt.Sprintf("[%v] has become unavailable [%v]", name, time.Now().Unix())
-			Taken = true
-			signal.Stop(c)
+			if !ClaimedIGN {
+				GotName <- fmt.Sprintf("[%v] has become unavailable [%v]", name, time.Now().Unix())
+				Taken = true
+				signal.Stop(c)
+			}
 		} else {
 			GotName <- fmt.Sprintf("[%v] has become unavailable [%v]", name, time.Now().Unix())
 		}
@@ -69,6 +72,9 @@ func SnipeDefault(name string) {
 		go func() {
 			ReqAmt := 0
 			for !Terminate {
+				if ClaimedIGN {
+					return
+				}
 				for e, acc := range Accs {
 					go func(acc []apiGO.Info) {
 						for i, Config := range acc {
@@ -82,12 +88,14 @@ func SnipeDefault(name string) {
 										WriteToLogs(name, body)
 										switch Req.ResponseDetails.StatusCode {
 										case "200":
+											ClaimedIGN = true
 											if Con.SkinChange.Link != "" {
 												apiGO.ChangeSkin(apiGO.JsonValue(Con.SkinChange), Req.Bearer)
 											}
 											fmt.Printf("[%v] Succesful - %v %v\n", name, Req.Email, apiGO.NameMC(Req.Bearer))
 											SendWebhook(name, Req.Bearer)
 											GotName <- fmt.Sprintf("[%v] Succesful - %v %v", name, Req.Email, apiGO.NameMC(Req.Bearer))
+											signal.Stop(c)
 											new, list, Accz := []apiGO.Bearers{}, []apiGO.Info{}, []string{}
 											for _, Accs := range Con.Bearers {
 												if Req.Email != Accs.Email {
@@ -116,8 +124,7 @@ func SnipeDefault(name string) {
 											Con.LoadState()
 										case "401":
 											fmt.Printf("[%v] %v came up invalid, reauthing..\n", Req.ResponseDetails.StatusCode, HashMessage(Req.Email, len(Req.Email)/4))
-											Authing = true
-											Accs[e][i].Error = "AuthRequired"
+											Accs[e][i].Error = "AuthRequired:" + Config.Email
 										}
 										time.Sleep(time.Duration(Con.SpreadPerSend) * time.Millisecond)
 									}
@@ -125,23 +132,21 @@ func SnipeDefault(name string) {
 							}
 						}
 					}(acc)
-					if Authing {
-						for i, acc := range acc {
-							if acc.Error == "AuthRequired" {
-								p := Proxy.CompRand()
-								s := strings.Split(p, ":")
-								var ip, port, user, pass string
-								if len(s) > 2 {
-									ip, port, user, pass = s[0], s[1], s[2], s[3]
-								} else {
-									ip, port = s[0], s[1]
-								}
-								upd := apiGO.MS_authentication(acc.Email, acc.Password, &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass})
-								Update(upd)
-								Accs[e][i] = upd
+					for i, acc := range acc {
+						if data := strings.Split(acc.Error, ":"); len(data) > 0 && data[0] == "AuthRequired" && data[1] == acc.Email {
+							p := Proxy.CompRand()
+							s := strings.Split(p, ":")
+							var ip, port, user, pass string
+							if len(s) > 2 {
+								ip, port, user, pass = s[0], s[1], s[2], s[3]
+							} else {
+								ip, port = s[0], s[1]
 							}
+							upd := apiGO.MS_authentication(acc.Email, acc.Password, &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass})
+							Update(upd)
+							Accs[e][i] = upd
+							break
 						}
-						Authing = false
 					}
 					if Taken {
 						GotName <- fmt.Sprintf("[%v] has become unavailable [%v]", name, time.Now().Unix())
@@ -149,6 +154,10 @@ func SnipeDefault(name string) {
 					}
 					if Terminate {
 						GotName <- "Terminated out of process for " + name
+						return
+					}
+					if ClaimedIGN {
+						return
 					}
 					time.Sleep(time.Duration(Con.SpreadPerAccount) * time.Millisecond)
 				}
@@ -167,7 +176,15 @@ func SendWebhook(name, bearer string) {
 		Bearer string `json:"bearer"`
 		Url    string `json:"icon_url"`
 	}
-	http.Post(fmt.Sprintf("https://buxflip.com/data/webhook/%v/%v", Con.DiscordID, name), "application/json", bytes.NewBuffer(apiGO.JsonValue(Payload{Name: name, Bearer: bearer, Url: GetHeadUrl(name)})))
+	resp, _ := http.Post(fmt.Sprintf("https://buxflip.com/data/webhook/%v/%v", Con.DiscordID, name), "application/json", bytes.NewBuffer(apiGO.JsonValue(Payload{Name: name, Bearer: bearer, Url: GetHeadUrl(name)})))
+	if resp.StatusCode == 200 {
+		fmt.Println("Succesfully sent webhook!")
+	} else {
+		if resp.Body != nil {
+			body, _ := io.ReadAll(resp.Body)
+			fmt.Println("Error: While sending webhook returned this body > " + string(body))
+		}
+	}
 }
 
 func GetHeadUrl(name string) string {
