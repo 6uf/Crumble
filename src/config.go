@@ -2,6 +2,7 @@ package src
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -53,6 +54,10 @@ func (s *Config) LoadState() {
 		s.SkinChange.Variant = "slim"
 		s.SkinChange.Link = "https://textures.minecraft.net/texture/516accb84322ca168a8cd06b4d8cc28e08b31cb0555eee01b64f9175cefe7b75"
 		s.ReqAmtPerAcc = 1 // default, can increase if u beleive ur account amount is good.
+		fmt.Println("Use proxys for authentication? : [YES/NO] > ")
+		var Context string
+		fmt.Scan(&Context)
+		s.UseProxyDuringAuth = strings.Contains(strings.ToLower(Context), "y")
 		s.SaveConfig()
 		return
 	}
