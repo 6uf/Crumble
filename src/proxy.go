@@ -4,10 +4,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"math/rand"
 	"net"
 	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/net/proxy"
@@ -18,34 +16,6 @@ type SniperProxy struct {
 	UsedAt       time.Time
 	Alive        bool
 	ProxyDetails Proxies
-}
-
-var Test []SniperProxy
-
-func GenProxysAndStoreForUsage() {
-	for {
-		var wg sync.WaitGroup
-		for i, acc := range Proxy.Proxys {
-			wg.Add(1)
-			go func(acc string, i int) {
-				var Found bool
-				if con := Connect(acc); con.Proxy != nil {
-					for i, Con := range Test {
-						if Con.ProxyDetails.IP == strings.Split(acc, ":")[0] {
-							Found = true
-							Test[i] = con
-						}
-					}
-					if !Found {
-						Test = append(Test, con)
-					}
-				}
-				wg.Done()
-			}(acc, i)
-		}
-		wg.Wait()
-		time.Sleep(15 * time.Second)
-	}
 }
 
 func Connect(acc string) SniperProxy {
@@ -78,16 +48,6 @@ func Connect(acc string) SniperProxy {
 		}
 	} else {
 		fmt.Println(err)
-	}
-	return SniperProxy{}
-}
-
-func RandomProxyConn() SniperProxy {
-	rand.Seed(time.Now().UnixNano())
-	time.Sleep(10 * time.Millisecond)
-	P := Test[rand.Intn(len(Test))]
-	if P.Alive {
-		return P
 	}
 	return SniperProxy{}
 }

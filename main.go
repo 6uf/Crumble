@@ -44,7 +44,6 @@ func init() {
 	src.Proxy.GetProxys(false, nil)
 	src.Proxy.Setup()
 	src.AuthAccs()
-	go src.GenProxysAndStoreForUsage()
 	go src.CheckAccs()
 	if src.Con.DiscordID == "" {
 		fmt.Print("Please enter your discord id for identification: ")

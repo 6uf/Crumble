@@ -79,7 +79,7 @@ func SnipeDefault(name string) {
 					go func(acc []apiGO.Info) {
 						for i, Config := range acc {
 							if !Taken {
-								if proxy := RandomProxyConn(); proxy.Alive {
+								if proxy := Connect(Proxy.CompRand()); proxy.Alive {
 									for o := 0; int64(o) < Con.ReqAmtPerAcc; o++ {
 										Req := apiGO.Details{ResponseDetails: apiGO.SocketSending(proxy.Proxy, ReturnPayload(Config.AccountType, Config.Bearer, name)), Bearer: Config.Bearer, Email: Config.Email, Type: Config.AccountType, Info: Config.Info}
 										ReqAmt++
