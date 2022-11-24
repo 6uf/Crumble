@@ -24,6 +24,7 @@ type Config struct {
 	Bearers            []apiGO.Bearers `json:"Bearers"`
 	UseProxyDuringAuth bool            `json:"useproxysduringauth"`
 	DiscordID          string          `json:"id"`
+	SendWebhook        bool            `json:"sendwebhook"`
 }
 
 type Info struct {

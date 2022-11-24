@@ -58,6 +58,7 @@ func (s *Config) LoadState() {
 		var Context string
 		fmt.Scan(&Context)
 		s.UseProxyDuringAuth = strings.Contains(strings.ToLower(Context), "y")
+		s.SendWebhook = true
 		fmt.Println()
 		s.SaveConfig()
 		return

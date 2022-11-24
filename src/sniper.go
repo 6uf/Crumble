@@ -92,8 +92,10 @@ func SnipeDefault(name string) {
 											if Con.SkinChange.Link != "" {
 												apiGO.ChangeSkin(apiGO.JsonValue(Con.SkinChange), Req.Bearer)
 											}
+											if Con.SendWebhook {
+												go SendWebhook(name, Req.Bearer)
+											}
 											fmt.Printf("[%v] Succesful - %v %v\n", name, Req.Email, apiGO.NameMC(Req.Bearer))
-											SendWebhook(name, Req.Bearer)
 											GotName <- fmt.Sprintf("[%v] Succesful - %v %v", name, Req.Email, apiGO.NameMC(Req.Bearer))
 											signal.Stop(c)
 											new, list, Accz := []apiGO.Bearers{}, []apiGO.Info{}, []string{}
