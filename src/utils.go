@@ -60,7 +60,7 @@ func Rewrite(path, accounts string) {
 }
 
 func GetDroptimes(name string) (int64, int64) {
-	if conn, err := (&h2.Client{Config: h2.GetDefaultConfig()}).Connect("https://namemc.com/search?q="+name, h2.ReqConfig{ID: 1, BuildID: tls2.HelloChrome_100}); err == nil {
+	if conn, err := (&h2.Client{Config: h2.GetDefaultConfig()}).Connect("https://namemc.com/search?q="+name, h2.ReqConfig{ID: 1, BuildID: tls2.HelloChrome_100, DataBodyMaxLength: 173648}); err == nil {
 		if resp, err := conn.Do(h2.MethodGet, "", "", nil); err == nil && resp.Status == "200" {
 			doc, _ := goquery.NewDocumentFromReader(bytes.NewBuffer(resp.Data))
 			if b, ok := doc.Find(`#availability-time`).Attr("datetime"); ok {
