@@ -16,7 +16,6 @@ import (
 
 	"github.com/6uf/StrCmd"
 	"github.com/6uf/apiGO"
-	"github.com/iskaa02/qalam/gradient"
 )
 
 var Username = ""
@@ -34,7 +33,13 @@ func TempCalc() time.Duration {
 func init() {
 	utils.Roots.AppendCertsFromPEM(utils.ProxyByte)
 	apiGO.Clear()
-	fmt.Print(utils.Logo(getLogo()))
+	fmt.Print(utils.Logo(`_________                        ______ ______     
+__  ____/__________  ________ ______  /____  /____ 
+_  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
+/ /___  _  /   / /_/ /_  / / / / /  /_/ /  / /  __/
+\____/  /_/    \__,_/ /_/ /_/ /_//_.___//_/  \___/ 
+
+`))
 	utils.Con.LoadState()
 	Username = GetDiscordUsername(utils.Con.DiscordID)
 	if file_name := "accounts.txt"; utils.CheckForValidFile(file_name) {
@@ -154,8 +159,7 @@ func main() {
 								time.Sleep(10 * time.Second)
 							}
 						} else {
-							G, _ := gradient.NewGradientBuilder().HtmlColors("rgb(125,110,221)", "rgb(90%,45%,97%)", "hsl(229,79%,85%)").Mode(gradient.BlendRgb).Build()
-							fmt.Println(fmt.Sprintf("Unable to start process for %v, no bearers found.", StrCmd.String("-u")), true, G)
+							fmt.Println(utils.Logo(fmt.Sprintf("Unable to start process for %v, no bearers found.", StrCmd.String("-u"))))
 						}
 					}
 				},
@@ -182,8 +186,6 @@ func main() {
 							})
 						}
 					}
-
-					// Sniper defaults.
 					ReqAmt := 0
 					c := make(chan os.Signal, 1)
 					signal.Notify(c, os.Interrupt)
@@ -204,7 +206,6 @@ func main() {
 							}
 						}
 					}()
-
 					if len(utils.Bearer.Details) != 0 {
 						for _, Config := range utils.Bearer.Details {
 							go func(Config apiGO.Info) {
@@ -255,6 +256,7 @@ func main() {
 												for i, n := range Accs {
 													if strings.EqualFold(n.Name, name) {
 														Accs[i].Taken = true
+														break
 													}
 												}
 												if utils.Con.SkinChange.Link != "" {
@@ -295,22 +297,23 @@ func main() {
 							time.Sleep(10 * time.Second)
 						}
 					} else {
-						G, _ := gradient.NewGradientBuilder().HtmlColors("rgb(125,110,221)", "rgb(90%,45%,97%)", "hsl(229,79%,85%)").Mode(gradient.BlendRgb).Build()
-						fmt.Println(fmt.Sprintf("Unable to start process for %v, no bearers found.", StrCmd.String("-u")), true, G)
+						fmt.Println(utils.Logo(fmt.Sprintf("Unable to start process for %v, no bearers found.", StrCmd.String("-u"))))
 					}
 				},
 			},
 			"key": {
 				Description: "Gets your namemc key!",
 				Action: func() {
-					var details string
-					fmt.Print("[email:pass] > ")
-					fmt.Scan(&details)
-					if acc := strings.Split(details, ":"); len(acc) > 0 {
-						G, _ := gradient.NewGradientBuilder().HtmlColors("rgb(125,110,221)", "rgb(90%,45%,97%)", "hsl(229,79%,85%)").Mode(gradient.BlendRgb).Build()
-						Acc := apiGO.MS_authentication(acc[0], acc[1], nil)
-						fmt.Println(apiGO.NameMC(Acc.Bearer, Acc.Info), true, G)
-					}
+					fmt.Println(utils.Logo("Broken ATM"))
+					/*
+						var details string
+						fmt.Print(utils.Logo("[email:pass] > "))
+						fmt.Scan(&details)
+						if acc := strings.Split(details, ":"); len(acc) > 0 {
+							Acc := apiGO.MS_authentication(acc[0], acc[1], nil)
+							fmt.Println(utils.Logo(apiGO.NameMC(Acc.Bearer, Acc.Info)))
+						}
+					*/
 				},
 			},
 		},
@@ -332,7 +335,7 @@ func GetDiscordUsername(ID string) string {
 		return "Unknown"
 	} else {
 		if resp.StatusCode == 429 {
-			return "Unknown - Rate Limited Via API"
+			return "Unknown"
 		}
 		var Body struct {
 			Data struct {
@@ -342,15 +345,4 @@ func GetDiscordUsername(ID string) string {
 		json.Unmarshal([]byte(apiGO.ReturnJustString(io.ReadAll(resp.Body))), &Body)
 		return Body.Data.Name
 	}
-}
-
-func getLogo() string {
-	return `
-_________                        ______ ______     
-__  ____/__________  ________ ______  /____  /____ 
-_  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
-/ /___  _  /   / /_/ /_  / / / / /  /_/ /  / /  __/
-\____/  /_/    \__,_/ /_/ /_/ /_//_.___//_/  \___/ 
-
-`
 }
