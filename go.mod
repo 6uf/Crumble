@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/6uf/StrCmd v0.0.0-20221127232213-f27367417177
-	github.com/6uf/apiGO v0.0.0-20221205194616-240d34b729e7
+	github.com/6uf/apiGO v0.0.0-20221205233901-8b04e0b99cc4
 	github.com/6uf/h2 v0.0.0-20221116002903-f88433c8fd62
 	github.com/PuerkitoBio/goquery v1.8.0
 	github.com/iskaa02/qalam v0.3.0
@@ -13,7 +13,7 @@ require (
 )
 
 require (
-	github.com/Tnze/go-mc v1.19.1-0.20221129063756-3750dff99dcd // indirect
+	github.com/Tnze/go-mc v1.19.1-0.20221205055808-516b3c2a8ba7 // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/andybalholm/cascadia v1.3.1 // indirect
 	github.com/google/uuid v1.3.0 // indirect

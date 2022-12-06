@@ -2,7 +2,6 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -49,17 +48,14 @@ func (s *Config) LoadState() {
 	data, err := ReadFile("config.json")
 	if err != nil {
 		s.LoadFromFile()
+		s.FirstUse = true
 		s.SkinChange.Variant = "slim"
 		s.SkinChange.Link = "https://textures.minecraft.net/texture/516accb84322ca168a8cd06b4d8cc28e08b31cb0555eee01b64f9175cefe7b75"
-		fmt.Print(Logo("\nUse proxys for authentication? : [YES/NO] > "))
-		var ProxyAuth string
-		fmt.Scan(&ProxyAuth)
-		s.UseProxyDuringAuth = strings.Contains(strings.ToLower(ProxyAuth), "y")
-		s.SendWebhook = true
-		fmt.Print(Logo("Discord ID: "))
-		var DISCORDID string
-		fmt.Scan(&DISCORDID)
-		s.DiscordID = DISCORDID
+		s.Gradient = Gradient{
+			RGB1: Values{R: "125", G: "110", B: "221"},
+			RGB2: Values{R: "90%", G: "45%", B: "97%"},
+			HSL:  Values{R: "229", G: "79%", B: "85%"},
+		}
 		s.SaveConfig()
 		return
 	}

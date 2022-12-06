@@ -335,50 +335,55 @@ func CheckDupes(strs []string) []string {
 func CheckAccs() {
 	for {
 		time.Sleep(10 * time.Second)
+	Exit:
 		for point, Accs := range Con.Bearers {
 			if time.Now().Unix() > Accs.AuthedAt+Accs.AuthInterval {
 				if len(Proxy.Proxys) > 0 && Con.UseProxyDuringAuth {
-					go func() {
-						ip, port, user, pass := "", "", "", ""
-						switch data := strings.Split(Proxy.CompRand(), ":"); len(data) {
-						case 2:
-							ip = data[0]
-							port = data[1]
-						case 4:
-							ip = data[0]
-							port = data[1]
-							user = data[2]
-							pass = data[3]
-						}
+					ip, port, user, pass := "", "", "", ""
+					switch data := strings.Split(Proxy.CompRand(), ":"); len(data) {
+					case 2:
+						ip = data[0]
+						port = data[1]
+					case 4:
+						ip = data[0]
+						port = data[1]
+						user = data[2]
+						pass = data[3]
+					}
 
-						switch info := apiGO.MS_authentication(Accs.Email, Accs.Password, &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}); true {
-						case info.Bearer != "" && apiGO.CheckChange(info.Bearer) && info.Error == "":
-							if Accs.Email == info.Email {
-								Con.Bearers[point] = apiGO.Bearers{
-									Bearer:     info.Bearer,
-									NameChange: true,
-									Type:       info.AccountType,
-									Password:   info.Password,
-									Email:      info.Email,
-									AuthedAt:   time.Now().Unix(),
-									Info:       info.Info,
-								}
-								Con.SaveConfig()
-								Con.LoadState()
-								break
+					switch info := apiGO.MS_authentication(Accs.Email, Accs.Password, &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}); true {
+					case info.Bearer != "" && apiGO.CheckChange(info.Bearer) && info.Error == "":
+						if Accs.Email == info.Email {
+							Con.Bearers[point] = apiGO.Bearers{
+								Bearer:     info.Bearer,
+								NameChange: true,
+								Type:       info.AccountType,
+								Password:   info.Password,
+								Email:      info.Email,
+								AuthedAt:   time.Now().Unix(),
+								Info:       info.Info,
 							}
-						default:
-							var new []apiGO.Bearers
-							for _, i := range Con.Bearers {
-								if i.Email != Accs.Email {
-									new = append(new, i)
+							for i, Bearers := range Bearer.Details {
+								if strings.EqualFold(Bearers.Email, info.Email) {
+									Bearer.Details[i] = info
+									break
 								}
 							}
-							Con.Bearers = new
 							Con.SaveConfig()
 							Con.LoadState()
+							break Exit
 						}
-					}()
+					default:
+						var new []apiGO.Bearers
+						for _, i := range Con.Bearers {
+							if i.Email != Accs.Email {
+								new = append(new, i)
+							}
+						}
+						Con.Bearers = new
+						Con.SaveConfig()
+						Con.LoadState()
+					}
 				} else {
 					switch info := apiGO.MS_authentication(Accs.Email, Accs.Password, nil); true {
 					case info.Bearer != "" && apiGO.CheckChange(info.Bearer) && info.Error == "":
@@ -391,6 +396,12 @@ func CheckAccs() {
 								Email:      info.Email,
 								AuthedAt:   time.Now().Unix(),
 								Info:       info.Info,
+							}
+							for i, Bearers := range Bearer.Details {
+								if strings.EqualFold(Bearers.Email, info.Email) {
+									Bearer.Details[i] = info
+									break
+								}
 							}
 							Con.SaveConfig()
 							Con.LoadState()

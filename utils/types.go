@@ -19,11 +19,25 @@ type Proxies struct {
 }
 
 type Config struct {
+	Gradient           Gradient        `json:"gradient"`
 	SkinChange         Skin            `json:"skin_config"`
-	Bearers            []apiGO.Bearers `json:"Bearers"`
 	UseProxyDuringAuth bool            `json:"useproxysduringauth"`
 	DiscordID          string          `json:"id"`
 	SendWebhook        bool            `json:"sendwebhook"`
+	Bearers            []apiGO.Bearers `json:"Bearers"`
+	FirstUse           bool            `json:"firstuse"`
+}
+
+type Gradient struct {
+	RGB1 Values `json:"rgb"`
+	RGB2 Values `json:"rgb2"`
+	HSL  Values `json:"hsl"`
+}
+
+type Values struct {
+	R string `json:"r"`
+	G string `json:"g"`
+	B string `json:"b"`
 }
 
 type Info struct {

@@ -33,6 +33,7 @@ func TempCalc() time.Duration {
 func init() {
 	utils.Roots.AppendCertsFromPEM(utils.ProxyByte)
 	apiGO.Clear()
+	utils.Con.LoadState()
 	fmt.Print(utils.Logo(`_________                        ______ ______     
 __  ____/__________  ________ ______  /____  /____ 
 _  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
@@ -40,7 +41,31 @@ _  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
 \____/  /_/    \__,_/ /_/ /_/ /_//_.___//_/  \___/ 
 
 `))
-	utils.Con.LoadState()
+
+	if utils.Con.DiscordID == "" {
+		fmt.Print(utils.Logo("Discord ID: "))
+		fmt.Scan(&utils.Con.DiscordID)
+		utils.Con.SaveConfig()
+		utils.Con.LoadState()
+	}
+	if utils.Con.FirstUse {
+		fmt.Print(utils.Logo("\nUse proxys for authentication? : [YES/NO] > "))
+		var ProxyAuth string
+		fmt.Scan(&ProxyAuth)
+		utils.Con.FirstUse = false
+		utils.Con.UseProxyDuringAuth = strings.Contains(strings.ToLower(ProxyAuth), "y")
+		utils.Con.SaveConfig()
+		utils.Con.LoadState()
+	}
+	if utils.Con.FirstUse {
+		fmt.Print(utils.Logo("\nSent to webhook when a snipe occurs? : [YES/NO] > "))
+		var WebhookCheck string
+		fmt.Scan(&WebhookCheck)
+		utils.Con.FirstUse = false
+		utils.Con.SendWebhook = strings.Contains(strings.ToLower(WebhookCheck), "y")
+		utils.Con.SaveConfig()
+		utils.Con.LoadState()
+	}
 	Username = GetDiscordUsername(utils.Con.DiscordID)
 	if file_name := "accounts.txt"; utils.CheckForValidFile(file_name) {
 		os.Create(file_name)
@@ -58,6 +83,7 @@ _  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
 	utils.Proxy.Setup()
 	utils.AuthAccs()
 	go utils.CheckAccs()
+	fmt.Println(utils.Logo(fmt.Sprintf("<!> accs available    [%v]\n<!> proxies available [%v]\n", len(utils.Bearer.Details), len(utils.Proxy.Proxys))))
 }
 
 func main() {
@@ -89,8 +115,13 @@ func main() {
 					}()
 					go func() {
 						for {
-							if utils.IsAvailable(name) || time.Now().After(time.Unix(end, 0)) {
+							if utils.IsAvailable(name) {
 								Claimed = true
+								break
+							}
+							if time.Now().After(time.Unix(end, 0)) {
+								Claimed = true
+								break
 							}
 							time.Sleep(10 * time.Second)
 						}
@@ -105,6 +136,12 @@ func main() {
 										if time.Until(Next).Seconds() > 10 {
 											time.Sleep(10 * time.Second)
 										}
+										for _, Acc := range utils.Bearer.Details {
+											if strings.EqualFold(Acc.Email, Config.Email) {
+												Config = Acc
+												break
+											}
+										}
 										if proxy := utils.Connect(utils.Proxy.CompRand()); proxy.Alive {
 											Payload := ReturnPayload(Config.AccountType, Config.Bearer, name)
 											fmt.Fprint(proxy.Proxy, Payload[:len(Payload)-4])
@@ -115,30 +152,6 @@ func main() {
 											fmt.Println(utils.Logo(C))
 											utils.WriteToLogs(name, C+"\n")
 											switch Req.ResponseDetails.StatusCode {
-											case "401":
-												d := apiGO.MS_authentication(Config.Email, Config.Password, (*apiGO.ProxyMS)(&proxy.ProxyDetails))
-												if d.Error == "" {
-													Config = apiGO.MS_authentication(Config.Email, Config.Password, (*apiGO.ProxyMS)(&proxy.ProxyDetails))
-													for i, acc := range utils.Con.Bearers {
-														if acc.Email == d.Email {
-															utils.Con.Bearers[i] = apiGO.Bearers{
-																Bearer:       d.Bearer,
-																Email:        d.Email,
-																Password:     d.Password,
-																AuthInterval: acc.AuthInterval,
-																AuthedAt:     time.Now().Unix(),
-																Type:         d.AccountType,
-																NameChange:   apiGO.CheckChange(d.Bearer),
-																Info:         apiGO.GetProfileInformation(d.Bearer, (*apiGO.ProxyMS)(&proxy.ProxyDetails)),
-															}
-															utils.Con.SaveConfig()
-															utils.Con.LoadState()
-															break
-														}
-													}
-												} else {
-													fmt.Printf("[Error] Account %v has become unusable.. %v\n", utils.HashMessage(d.Email, 5), d.Error)
-												}
 											case "200":
 												Claimed = true
 												if utils.Con.SkinChange.Link != "" {
@@ -158,6 +171,7 @@ func main() {
 							for !Claimed {
 								time.Sleep(10 * time.Second)
 							}
+							signal.Stop(c)
 						} else {
 							fmt.Println(utils.Logo(fmt.Sprintf("Unable to start process for %v, no bearers found.", StrCmd.String("-u"))))
 						}
@@ -215,6 +229,12 @@ func main() {
 									if time.Until(Next).Seconds() > 10 {
 										time.Sleep(10 * time.Second)
 									}
+									for _, Acc := range utils.Bearer.Details {
+										if strings.EqualFold(Acc.Email, Config.Email) {
+											Config = Acc
+											break
+										}
+									}
 									if proxy := utils.Connect(utils.Proxy.CompRand()); proxy.Alive {
 										rand.Seed(time.Now().UnixMilli())
 										if Data := Accs[rand.Intn(len(Accs))]; !Data.Taken {
@@ -228,30 +248,6 @@ func main() {
 											fmt.Println(utils.Logo(C))
 											utils.WriteToLogs(name, C+"\n")
 											switch Req.ResponseDetails.StatusCode {
-											case "401":
-												d := apiGO.MS_authentication(Config.Email, Config.Password, (*apiGO.ProxyMS)(&proxy.ProxyDetails))
-												if d.Error == "" {
-													Config = apiGO.MS_authentication(Config.Email, Config.Password, (*apiGO.ProxyMS)(&proxy.ProxyDetails))
-													for i, acc := range utils.Con.Bearers {
-														if acc.Email == d.Email {
-															utils.Con.Bearers[i] = apiGO.Bearers{
-																Bearer:       d.Bearer,
-																Email:        d.Email,
-																Password:     d.Password,
-																AuthInterval: acc.AuthInterval,
-																AuthedAt:     time.Now().Unix(),
-																Type:         d.AccountType,
-																NameChange:   apiGO.CheckChange(d.Bearer),
-																Info:         apiGO.GetProfileInformation(d.Bearer, (*apiGO.ProxyMS)(&proxy.ProxyDetails)),
-															}
-															utils.Con.SaveConfig()
-															utils.Con.LoadState()
-															break
-														}
-													}
-												} else {
-													fmt.Printf("[Error] Account %v has become unusable.. %v\n", utils.HashMessage(d.Email, 5), d.Error)
-												}
 											case "200":
 												for i, n := range Accs {
 													if strings.EqualFold(n.Name, name) {
@@ -304,16 +300,31 @@ func main() {
 			"key": {
 				Description: "Gets your namemc key!",
 				Action: func() {
-					fmt.Println(utils.Logo("Broken ATM"))
-					/*
-						var details string
-						fmt.Print(utils.Logo("[email:pass] > "))
-						fmt.Scan(&details)
-						if acc := strings.Split(details, ":"); len(acc) > 0 {
+					var details string
+					fmt.Print(utils.Logo("[email:pass] > "))
+					fmt.Scan(&details)
+					if acc := strings.Split(details, ":"); len(acc) > 0 {
+						if len(utils.Proxy.Proxys) > 0 {
+							ip, port, user, pass := "", "", "", ""
+							switch data := strings.Split(utils.Proxy.CompRand(), ":"); len(data) {
+							case 2:
+								ip = data[0]
+								port = data[1]
+							case 4:
+								ip = data[0]
+								port = data[1]
+								user = data[2]
+								pass = data[3]
+							}
+							Acc := apiGO.MS_authentication(acc[0], acc[1], &apiGO.ProxyMS{
+								IP: ip, Port: port, User: user, Password: pass,
+							})
+							fmt.Println(utils.Logo(apiGO.NameMC(Acc.Bearer, Acc.Info)))
+						} else {
 							Acc := apiGO.MS_authentication(acc[0], acc[1], nil)
 							fmt.Println(utils.Logo(apiGO.NameMC(Acc.Bearer, Acc.Info)))
 						}
-					*/
+					}
 				},
 			},
 		},

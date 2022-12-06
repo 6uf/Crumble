@@ -88,7 +88,7 @@ func GetHeadUrl(name string) string {
 
 func IsAvailable(name string) bool {
 	resp, err := http.Get("https://account.mojang.com/available/minecraft/" + name)
-	if err != nil {
+	if err == nil {
 		return resp.StatusCode == 200
 	} else {
 		return false
@@ -127,9 +127,9 @@ func WriteToLogs(name, logs string) {
 func Logo(Data string) string {
 	g, _ := gradient.NewGradientBuilder().
 		HtmlColors(
-			"rgb(125,110,221)",
-			"rgb(90%,45%,97%)",
-			"hsl(229,79%,85%)",
+			fmt.Sprintf("rgb(%v,%v,%v)", Con.Gradient.RGB1.R, Con.Gradient.RGB1.G, Con.Gradient.RGB1.B),
+			fmt.Sprintf("rgb(%v,%v,%v)", Con.Gradient.RGB2.R, Con.Gradient.RGB2.G, Con.Gradient.RGB2.B),
+			fmt.Sprintf("rgb(%v,%v,%v)", Con.Gradient.HSL.R, Con.Gradient.HSL.G, Con.Gradient.HSL.B),
 		).
 		Mode(gradient.BlendRgb).
 		Build()
