@@ -88,92 +88,73 @@ _  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
 
 func main() {
 	app := StrCmd.App{
-		Version:        "v1.0.25b-CR",
+		Version:        "v1.2.25b-CR",
 		AppDescription: "Crumble is a open source minecraft turbo!",
 		Commands: map[string]StrCmd.Command{
 			"snipe": {
 				Description: "Main sniper command, targets only one ign that is passed through with -u",
 				Action: func() {
-					ReqAmt := 0
-					Claimed := false
-					name := StrCmd.String("-u")
-					Spread := TempCalc()
-
+					cl, name, Spread, Changed, Dummy, c, ChangeDetected := false, StrCmd.String("-u"), time.Millisecond, false, make(chan string), make(chan os.Signal, 1), make(chan apiGO.Details)
+					if utils.Con.UseCustomSpread {
+						Spread = time.Duration(utils.Con.Spread) * time.Millisecond
+					} else {
+						Spread = TempCalc()
+					}
+					signal.Notify(c, os.Interrupt)
 					start, end := utils.GetDroptimes(name)
 					drop := time.Unix(start, 0)
 					for time.Now().Before(drop) {
-						fmt.Print(utils.Logo((fmt.Sprintf("[%v] %v", name, time.Until(drop).Round(time.Second)))))
+						fmt.Print(utils.Logo((fmt.Sprintf("[%v] %v                 \r", name, time.Until(drop).Round(time.Second)))))
 						time.Sleep(time.Second * 1)
 					}
-
-					c := make(chan os.Signal, 1)
-					signal.Notify(c, os.Interrupt)
 					go func() {
-						<-c
-						signal.Stop(c)
-						Claimed = true
-					}()
-					go func() {
+					Exit:
 						for {
-							if utils.IsAvailable(name) {
-								Claimed = true
-								break
-							}
-							if time.Now().After(time.Unix(end, 0)) {
-								Claimed = true
-								break
-							}
-							time.Sleep(10 * time.Second)
-						}
-					}()
-					if name != "" {
-						if len(utils.Bearer.Details) != 0 {
-							for _, Config := range utils.Bearer.Details {
-								go func(Config apiGO.Info, name string) {
-									Next := time.Now()
-									for !Claimed {
-										New := time.Now().Add(time.Second * 15)
-										if time.Until(Next).Seconds() > 10 {
-											time.Sleep(10 * time.Second)
-										}
-										for _, Acc := range utils.Bearer.Details {
-											if strings.EqualFold(Acc.Email, Config.Email) {
-												Config = Acc
-												break
-											}
-										}
-										if proxy := utils.Connect(utils.Proxy.CompRand()); proxy.Alive {
-											Payload := ReturnPayload(Config.AccountType, Config.Bearer, name)
-											fmt.Fprint(proxy.Proxy, Payload[:len(Payload)-4])
-											time.Sleep(time.Until(Next))
-											Req := apiGO.Details{ResponseDetails: apiGO.SocketSending(proxy.Proxy, "\r\n"), Bearer: Config.Bearer, Email: Config.Email, Type: Config.AccountType, Info: Config.Info}
-											ReqAmt++
-											C := fmt.Sprintf("[%v >> %v] (%v:%v) %v - %v (%v)", Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.RecvAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, name, Req.Email[:4], proxy.ProxyDetails.IP[:5]+strings.Repeat("*", 5), ReqAmt)
-											fmt.Println(utils.Logo(C))
-											utils.WriteToLogs(name, C+"\n")
-											switch Req.ResponseDetails.StatusCode {
-											case "200":
-												Claimed = true
-												if utils.Con.SkinChange.Link != "" {
-													apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Req.Bearer)
-												}
-												if utils.Con.SendWebhook {
-													go utils.SendWebhook(name, Req.Bearer)
-												}
-												fmt.Printf("[%v] Succesful - %v %v\n", name, Req.Email, apiGO.NameMC(Req.Bearer, apiGO.GetProfileInformation(Req.Bearer, (*apiGO.ProxyMS)(&proxy.ProxyDetails))))
-											}
-										}
-										Next = New
-									}
-								}(Config, name)
-								time.Sleep(Spread)
-							}
-							for !Claimed {
+							select {
+							case <-c:
+								signal.Stop(c)
+								Changed = true
+								cl = true
+								break Exit
+							default:
+								if utils.IsAvailable(name) {
+									Changed = true
+									cl = true
+									break Exit
+								}
+								if time.Now().After(time.Unix(end, 0)) {
+									Changed = true
+									cl = true
+									break Exit
+								}
 								time.Sleep(10 * time.Second)
 							}
+						}
+					}()
+					for _, Config := range utils.Bearer.Details {
+						go Snipe(Config, name, &Changed, &ChangeDetected, false, nil, &Dummy)
+						time.Sleep(Spread)
+					}
+				Exit:
+					for {
+						if cl {
+							fmt.Println(utils.Logo(name + " Has dropped."))
 							signal.Stop(c)
-						} else {
-							fmt.Println(utils.Logo(fmt.Sprintf("Unable to start process for %v, no bearers found.", StrCmd.String("-u"))))
+							break Exit
+						}
+						select {
+						case Req := <-ChangeDetected:
+							if utils.Con.SkinChange.Link != "" {
+								go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Req.Bearer)
+							}
+							if utils.Con.SendWebhook {
+								go utils.SendWebhook(name, Req.Bearer)
+							}
+							fmt.Println(utils.Logo(fmt.Sprintf("[%v] Succesfully sniped! - %v", name, Req.Email)))
+							signal.Stop(c)
+							break Exit
+						default:
+							time.Sleep(10 * time.Second)
 						}
 					}
 				},
@@ -184,103 +165,52 @@ func main() {
 			"list": {
 				Description: "List snipes from accounts within the names.txt file and send req at random based on each.",
 				Action: func() {
-					// Get accounts
-					Spread := TempCalc()
 					accs, _ := os.ReadFile("names.txt")
-					Scanner := bufio.NewScanner(bytes.NewBuffer(accs))
-					type Names struct {
-						Name  string
-						Taken bool
-					}
-					var Accs []Names
+					Spread, ListName, Accs, Scanner, c, ChangeDetected := TempCalc(), make(chan string), []utils.Names{}, bufio.NewScanner(bytes.NewBuffer(accs)), make(chan os.Signal, 1), make(chan apiGO.Details)
+					signal.Notify(c, os.Interrupt)
 					for Scanner.Scan() {
 						if Text := Scanner.Text(); Text != "" {
-							Accs = append(Accs, Names{
+							Accs = append(Accs, utils.Names{
 								Name: Text,
 							})
 						}
 					}
-					ReqAmt := 0
-					c := make(chan os.Signal, 1)
-					signal.Notify(c, os.Interrupt)
 					go func() {
-						<-c
-						signal.Stop(c)
-						for i := range Accs {
-							Accs[i].Taken = true
-						}
-					}()
-					go func() {
+					Exit:
 						for {
-							for i, n := range Accs {
-								if !n.Taken && utils.IsAvailable(n.Name) {
-									Accs[i].Taken = true
+							select {
+							case <-c:
+								signal.Stop(c)
+								for i := range Accs {
+									ListName <- Accs[i].Name
 								}
-								time.Sleep(10 * time.Second)
+								break Exit
+							default:
+								for i, n := range Accs {
+									if !n.Taken && utils.IsAvailable(n.Name) {
+										ListName <- Accs[i].Name
+									}
+									time.Sleep(10 * time.Second)
+								}
 							}
 						}
 					}()
-					if len(utils.Bearer.Details) != 0 {
-						for _, Config := range utils.Bearer.Details {
-							go func(Config apiGO.Info) {
-								Next := time.Now()
-								for {
-									New := time.Now().Add(time.Second * 15)
-									if time.Until(Next).Seconds() > 10 {
-										time.Sleep(10 * time.Second)
-									}
-									for _, Acc := range utils.Bearer.Details {
-										if strings.EqualFold(Acc.Email, Config.Email) {
-											Config = Acc
-											break
-										}
-									}
-									if proxy := utils.Connect(utils.Proxy.CompRand()); proxy.Alive {
-										rand.Seed(time.Now().UnixMilli())
-										if Data := Accs[rand.Intn(len(Accs))]; !Data.Taken {
-											name := Data.Name
-											Payload := ReturnPayload(Config.AccountType, Config.Bearer, name)
-											fmt.Fprint(proxy.Proxy, Payload[:len(Payload)-4])
-											time.Sleep(time.Until(Next))
-											Req := apiGO.Details{ResponseDetails: apiGO.SocketSending(proxy.Proxy, "\r\n"), Bearer: Config.Bearer, Email: Config.Email, Type: Config.AccountType, Info: Config.Info}
-											ReqAmt++
-											C := fmt.Sprintf("[%v >> %v] (%v:%v) %v - %v (%v)", Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.RecvAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, name, Req.Email[:4], proxy.ProxyDetails.IP[:5]+strings.Repeat("*", 5), ReqAmt)
-											fmt.Println(utils.Logo(C))
-											utils.WriteToLogs(name, C+"\n")
-											switch Req.ResponseDetails.StatusCode {
-											case "200":
-												for i, n := range Accs {
-													if strings.EqualFold(n.Name, name) {
-														Accs[i].Taken = true
-														break
-													}
-												}
-												if utils.Con.SkinChange.Link != "" {
-													apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Req.Bearer)
-												}
-												if utils.Con.SendWebhook {
-													go utils.SendWebhook(name, Req.Bearer)
-												}
-												fmt.Printf("[%v] Succesful - %v %v\n", name, Req.Email, apiGO.NameMC(Req.Bearer, apiGO.GetProfileInformation(Req.Bearer, (*apiGO.ProxyMS)(&proxy.ProxyDetails))))
-											}
-										} else {
-											Found := 0
-											for _, n := range Accs {
-												if !n.Taken {
-													Found++
-												}
-											}
-											if Found == 0 {
-												break
-											}
-										}
-									}
-									Next = New
-								}
-							}(Config)
-							time.Sleep(Spread)
-						}
-						for {
+					for _, Config := range utils.Bearer.Details {
+						go Snipe(Config, "", &[]bool{false}[0], &ChangeDetected, true, &Accs, &ListName)
+						time.Sleep(Spread)
+					}
+				Exit:
+					for {
+						select {
+						case Req := <-ChangeDetected:
+							if utils.Con.SkinChange.Link != "" {
+								go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Req.Bearer)
+							}
+							if utils.Con.SendWebhook {
+								go utils.SendWebhook(Req.Info.Name, Req.Bearer)
+							}
+							fmt.Println(utils.Logo(fmt.Sprintf("[%v] Succesfully sniped! - %v", Req.Info.Name, Req.Email)))
+						default:
 							Found := 0
 							for _, n := range Accs {
 								if !n.Taken {
@@ -288,12 +218,10 @@ func main() {
 								}
 							}
 							if Found == 0 {
-								break
+								break Exit
 							}
 							time.Sleep(10 * time.Second)
 						}
-					} else {
-						fmt.Println(utils.Logo(fmt.Sprintf("Unable to start process for %v, no bearers found.", StrCmd.String("-u"))))
 					}
 				},
 			},
@@ -334,9 +262,10 @@ func main() {
 
 func ReturnPayload(acc, bearer, name string) string {
 	if acc == "Giftcard" {
-		return fmt.Sprintf("POST /minecraft/profile HTTP/1.1\r\nHost: api.minecraftservices.com\r\nConnection: open\r\nContent-Length:%v\r\nContent-Type: application/json\r\nAccept: application/json\r\nAuthorization: Bearer %v\r\n\r\n{\"profileName\":\"%v\"}\r\n", len(`{"profileName":"`+name+`"}`), bearer, name)
+		var JSON string = fmt.Sprintf(`{"profileName":"%v"}`, name)
+		return fmt.Sprintf("POST /minecraft/profile HTTP/1.1\r\nHost: api.minecraftservices.com\r\nConnection: open\r\nContent-Length:%v\r\nContent-Type: application/json\r\nAccept: application/json\r\nAuthorization: Bearer %v\r\n\r\n%v\r\n", len(JSON), bearer, JSON)
 	} else {
-		return "PUT /minecraft/profile/name/" + name + " HTTP/1.1\r\nHost: api.minecraftservices.com\r\nConnection: open\r\nUser-Agent: MCSN/1.0\r\nContent-Length:0\r\nAuthorization: bearer " + bearer + "\r\n\r\n"
+		return "PUT /minecraft/profile/name/" + name + " HTTP/1.1\r\nHost: api.minecraftservices.com\r\nConnection: open\r\nUser-Agent: MCSN/1.0\r\nContent-Length:0\r\nAuthorization: bearer " + bearer + "\r\n"
 	}
 }
 
@@ -355,5 +284,95 @@ func GetDiscordUsername(ID string) string {
 		}
 		json.Unmarshal([]byte(apiGO.ReturnJustString(io.ReadAll(resp.Body))), &Body)
 		return Body.Data.Name
+	}
+}
+
+func Snipe(Config apiGO.Info, name string, NameRecvChannel *bool, SnipedSingleIGN *chan apiGO.Details, list bool, names *[]utils.Names, ListName *chan string) {
+	Next := time.Now()
+Exit:
+	for {
+		if *NameRecvChannel {
+			break Exit
+		}
+		select {
+		case Data := <-*ListName:
+			if list {
+				for i, name := range *names {
+					if strings.EqualFold(Data, name.Name) {
+						(*names)[i].Taken = true
+					}
+				}
+			}
+		default:
+			New := Next.Add(time.Duration(utils.Con.TimeBetweenSleeps) * time.Millisecond)
+			for _, Acc := range utils.Bearer.Details {
+				if strings.EqualFold(Acc.Email, Config.Email) {
+					Config = Acc
+					break
+				}
+			}
+			time.Sleep(New.Sub(time.Unix(New.Unix()-5, 0)))
+			if proxy := utils.Connect(utils.Proxy.CompRand()); proxy.Alive {
+				var Payload string
+				if list {
+					if Data := (*names)[rand.Intn(len(*names))]; !Data.Taken {
+						name = Data.Name
+						Payload = ReturnPayload(Config.AccountType, Config.Bearer, Data.Name)
+					}
+				} else {
+					Payload = ReturnPayload(Config.AccountType, Config.Bearer, name)
+				}
+				fmt.Fprint(proxy.Proxy, Payload)
+				time.Sleep(time.Until(Next))
+				if Payload != "" && !*NameRecvChannel {
+					Req := apiGO.Details{ResponseDetails: apiGO.SocketSending(proxy.Proxy, "\r\n"), Bearer: Config.Bearer, Email: Config.Email, Type: Config.AccountType, Info: Config.Info}
+					var Details utils.Status
+					switch true {
+					case strings.Contains(Req.ResponseDetails.Body, "ALREADY_REGISTERED"):
+						Details.Data.Status = "ALREADY_REGISTERED"
+					case strings.Contains(Req.ResponseDetails.Body, "NOT_ENTITLED"):
+						Details.Data.Status = "NOT_ENTITLED"
+					case strings.Contains(Req.ResponseDetails.Body, "DUPLICATE"):
+						Details.Data.Status = "DUPLICATE"
+					case strings.Contains(Req.ResponseDetails.Body, "NOT_ALLOWED"):
+						Details.Data.Status = "NOT_ALLOWED"
+					default:
+						switch Req.ResponseDetails.StatusCode {
+						case "429":
+							Details.Data.Status = "RATE_LIMITED"
+						case "401":
+							Details.Data.Status = "UNAUTHORIZED"
+						case "200":
+							Details.Data.Status = "CLAIMED"
+						case "":
+							Details.Data.Status = "DEAD_PROXY"
+						default:
+							Details.Data.Status = "UNKNOWN:" + Req.ResponseDetails.StatusCode
+						}
+					}
+					C := fmt.Sprintf(`<%v> ~ [%v] {"status":"%v","name":"%v","account_type":"%v"}`, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, name, Config.AccountType)
+					fmt.Println(utils.Logo(C))
+					utils.WriteToLogs(name, C+"\n")
+					switch Req.ResponseDetails.StatusCode {
+					case "200":
+						Req.Info.Name = name
+						*SnipedSingleIGN <- Req
+						*NameRecvChannel = true
+					}
+				} else if list {
+					var found bool
+					for _, names := range *names {
+						if !names.Taken {
+							found = true
+							break
+						}
+					}
+					if !found {
+						break Exit
+					}
+				}
+			}
+			Next = New
+		}
 	}
 }

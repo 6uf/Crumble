@@ -14,8 +14,19 @@ var (
 	Bearer apiGO.MCbearers
 )
 
+type Names struct {
+	Name  string
+	Taken bool
+}
+
 type Proxies struct {
 	IP, Port, User, Password string
+}
+
+type Status struct {
+	Data struct {
+		Status string `json:"status"`
+	} `json:"details"`
 }
 
 type Config struct {
@@ -24,6 +35,9 @@ type Config struct {
 	UseProxyDuringAuth bool            `json:"useproxysduringauth"`
 	DiscordID          string          `json:"id"`
 	SendWebhook        bool            `json:"sendwebhook"`
+	UseCustomSpread    bool            `json:"use_own_spread_value"`
+	Spread             int64           `json:"spread_ms"`
+	TimeBetweenSleeps  int64           `json:"sleepbetweensends"`
 	Bearers            []apiGO.Bearers `json:"Bearers"`
 	FirstUse           bool            `json:"firstuse"`
 }

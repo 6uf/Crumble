@@ -56,6 +56,7 @@ func (s *Config) LoadState() {
 			RGB2: Values{R: "90%", G: "45%", B: "97%"},
 			HSL:  Values{R: "229", G: "79%", B: "85%"},
 		}
+		s.TimeBetweenSleeps = 16000
 		s.SaveConfig()
 		return
 	}
