@@ -12,6 +12,7 @@ var (
 	Con    Config
 	Proxy  apiGO.Proxys
 	Bearer apiGO.MCbearers
+	RGB    []string
 )
 
 type Names struct {
@@ -30,7 +31,7 @@ type Status struct {
 }
 
 type Config struct {
-	Gradient           Gradient        `json:"gradient"`
+	Gradient           []Values        `json:"gradient"`
 	SkinChange         Skin            `json:"skin_config"`
 	UseProxyDuringAuth bool            `json:"useproxysduringauth"`
 	DiscordID          string          `json:"id"`

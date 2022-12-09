@@ -15,6 +15,7 @@ import (
 	"github.com/6uf/apiGO"
 	"github.com/6uf/h2"
 	"github.com/PuerkitoBio/goquery"
+	html "github.com/antchfx/htmlquery"
 	"github.com/iskaa02/qalam/gradient"
 	tls2 "github.com/refraction-networking/utls"
 	"golang.org/x/net/proxy"
@@ -95,7 +96,7 @@ func IsAvailable(name string) bool {
 	}
 }
 
-func GetDroptimes(name string) (int64, int64) {
+func GetDroptimes(name string) (int64, int64, string, string) {
 	if conn, err := (&h2.Client{Config: h2.GetDefaultConfig()}).Connect("https://namemc.com/search?q="+name, h2.ReqConfig{ID: 1, BuildID: tls2.HelloChrome_100, DataBodyMaxLength: 167859}); err == nil {
 		if resp, err := conn.Do(h2.MethodGet, "", "", nil); err == nil && resp.Status == "200" {
 			doc, _ := goquery.NewDocumentFromReader(bytes.NewBuffer(resp.Data))
@@ -103,14 +104,19 @@ func GetDroptimes(name string) (int64, int64) {
 				if e, ok := doc.Find(`#availability-time2`).Attr("datetime"); ok {
 					if t1, err := time.Parse(time.RFC3339, b); err == nil {
 						if t2, err := time.Parse(time.RFC3339, e); err == nil {
-							return t1.Unix(), t2.Unix()
+							if d, err := html.Parse(strings.NewReader(string(resp.Data))); err == nil {
+								if status, searches := html.FindOne(d, `//*[@id="status-bar"]/div/div[1]/div[2]`), html.FindOne(d, `//*[@id="status-bar"]/div/div[2]/div[2]`); status.FirstChild != nil && searches.FirstChild != nil {
+									return t1.Unix(), t2.Unix(), status.FirstChild.Data, strings.Split(searches.FirstChild.Data, " / month")[0]
+								}
+							}
+							return t1.Unix(), t2.Unix(), "", ""
 						}
 					}
 				}
 			}
 		}
 	}
-	return 0, 0
+	return 0, 0, "", ""
 }
 
 func WriteToLogs(name, logs string) {
@@ -126,11 +132,7 @@ func WriteToLogs(name, logs string) {
 
 func Logo(Data string) string {
 	g, _ := gradient.NewGradientBuilder().
-		HtmlColors(
-			fmt.Sprintf("rgb(%v,%v,%v)", Con.Gradient.RGB1.R, Con.Gradient.RGB1.G, Con.Gradient.RGB1.B),
-			fmt.Sprintf("rgb(%v,%v,%v)", Con.Gradient.RGB2.R, Con.Gradient.RGB2.G, Con.Gradient.RGB2.B),
-			fmt.Sprintf("rgb(%v,%v,%v)", Con.Gradient.HSL.R, Con.Gradient.HSL.G, Con.Gradient.HSL.B),
-		).
+		HtmlColors(RGB...).
 		Mode(gradient.BlendRgb).
 		Build()
 	return g.Mutline(Data)

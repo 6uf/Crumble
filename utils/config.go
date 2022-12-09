@@ -51,10 +51,9 @@ func (s *Config) LoadState() {
 		s.FirstUse = true
 		s.SkinChange.Variant = "slim"
 		s.SkinChange.Link = "https://textures.minecraft.net/texture/516accb84322ca168a8cd06b4d8cc28e08b31cb0555eee01b64f9175cefe7b75"
-		s.Gradient = Gradient{
-			RGB1: Values{R: "125", G: "110", B: "221"},
-			RGB2: Values{R: "90%", G: "45%", B: "97%"},
-			HSL:  Values{R: "229", G: "79%", B: "85%"},
+		s.Gradient = []Values{
+			{R: "125", G: "110", B: "221"},
+			{R: "90%", G: "45%", B: "97%"},
 		}
 		s.TimeBetweenSleeps = 16000
 		s.SaveConfig()
