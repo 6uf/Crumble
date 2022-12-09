@@ -46,11 +46,15 @@ _  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
 		utils.Con.LoadState()
 	}
 	if utils.Con.FirstUse {
-		fmt.Print(utils.Logo("\nUse proxys for authentication? : [YES/NO] > "))
+		fmt.Print(utils.Logo("Use proxys for authentication? : [YES/NO] > "))
 		var ProxyAuth string
 		fmt.Scan(&ProxyAuth)
 		utils.Con.FirstUse = false
 		utils.Con.UseProxyDuringAuth = strings.Contains(strings.ToLower(ProxyAuth), "y")
+		fmt.Print(utils.Logo("Send to webhook once sniped? : [YES/NO] > "))
+		var WebhookSend string
+		fmt.Scan(&WebhookSend)
+		utils.Con.SendWebhook = strings.Contains(strings.ToLower(WebhookSend), "y")
 		utils.Con.SaveConfig()
 		utils.Con.LoadState()
 	}
@@ -118,7 +122,7 @@ func main() {
 									cl = true
 									break Exit
 								}
-								if time.Now().After(time.Unix(end, 0)) {
+								if start != 0 && end != 0 && time.Now().After(time.Unix(end, 0)) {
 									Changed = true
 									cl = true
 									break Exit
@@ -139,13 +143,15 @@ End        ~ %v
 
 `, name, Spread, len(utils.Proxy.Proxys), len(utils.Bearer.Details), searches, status, time.Unix(start, 0), time.Unix(end, 0))))
 					for _, Config := range utils.Bearer.Details {
-						go Snipe(Config, name, &Changed, &ChangeDetected, false, nil, &Dummy)
+						go Snipe(Config, name, &Changed, false, nil, &Dummy)
 						time.Sleep(Spread)
 					}
 				Exit:
 					for {
 						if cl {
-							fmt.Println("\n", utils.Logo(name+" Has dropped."))
+							ReqAmt = 0
+							fmt.Println()
+							fmt.Println(utils.Logo(name + " Has dropped."))
 							signal.Stop(c)
 							break Exit
 						}
@@ -174,7 +180,7 @@ End        ~ %v
 				Action: func() {
 					accs, _ := os.ReadFile("names.txt")
 					var plain_accs []string
-					Spread, ListName, Accs, Scanner, c, ChangeDetected := TempCalc(), make(chan string), []utils.Names{}, bufio.NewScanner(bytes.NewBuffer(accs)), make(chan os.Signal, 1), make(chan apiGO.Details)
+					Spread, ListName, Accs, Scanner, c := TempCalc(), make(chan string), []utils.Names{}, bufio.NewScanner(bytes.NewBuffer(accs)), make(chan os.Signal, 1)
 					signal.Notify(c, os.Interrupt)
 					for Scanner.Scan() {
 						if Text := Scanner.Text(); Text != "" {
@@ -212,32 +218,21 @@ Account(s) ~ %v
 
 `, plain_accs, Spread, len(utils.Proxy.Proxys), len(utils.Bearer.Details))))
 					for _, Config := range utils.Bearer.Details {
-						go Snipe(Config, "", &[]bool{false}[0], &ChangeDetected, true, &Accs, &ListName)
+						go Snipe(Config, "", &[]bool{false}[0], true, &Accs, &ListName)
 						time.Sleep(Spread)
 					}
 				Exit:
 					for {
-						select {
-						case Req := <-ChangeDetected:
-							if utils.Con.SkinChange.Link != "" {
-								go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Req.Bearer)
+						Found := 0
+						for _, n := range Accs {
+							if !n.Taken {
+								Found++
 							}
-							if utils.Con.SendWebhook {
-								go utils.SendWebhook(Req.Info.Name, Req.Bearer)
-							}
-							fmt.Println(utils.Logo(fmt.Sprintf("[%v] Succesfully sniped! - %v", Req.Info.Name, Req.Email)))
-						default:
-							Found := 0
-							for _, n := range Accs {
-								if !n.Taken {
-									Found++
-								}
-							}
-							if Found == 0 {
-								break Exit
-							}
-							time.Sleep(10 * time.Second)
 						}
+						if Found == 0 {
+							break Exit
+						}
+						time.Sleep(10 * time.Second)
 					}
 				},
 			},
@@ -306,7 +301,7 @@ func GetDiscordUsername(ID string) string {
 var ReqAmt int
 var LastReq time.Time
 
-func Snipe(Config apiGO.Info, name string, NameRecvChannel *bool, SnipedSingleIGN *chan apiGO.Details, list bool, names *[]utils.Names, ListName *chan string) {
+func Snipe(Config apiGO.Info, name string, NameRecvChannel *bool, list bool, names *[]utils.Names, ListName *chan string) {
 	Next := time.Now()
 Exit:
 	for {
@@ -351,24 +346,12 @@ Exit:
 					switch true {
 					case strings.Contains(Req.ResponseDetails.Body, "ALREADY_REGISTERED"):
 						Details.Data.Status = "ALREADY_REGISTERED"
+						UpdateConfig(Config.Email)
+						fmt.Println(utils.Logo(fmt.Sprintf("[401] %v cannot name change anymore!", Config.Email)))
+						return
 					case strings.Contains(Req.ResponseDetails.Body, "NOT_ENTITLED"):
 						Details.Data.Status = "NOT_ENTITLED"
-						// delete acc from bearers and update config on namechange state.
-						var New []apiGO.Info
-						for _, acc := range utils.Bearer.Details {
-							if !strings.EqualFold(acc.Email, Config.Email) {
-								New = append(New, acc)
-							}
-						}
-						utils.Bearer.Details = New
-						for i, acc := range utils.Con.Bearers {
-							if strings.EqualFold(acc.Email, Config.Email) {
-								utils.Con.Bearers[i].NameChange = false
-								utils.Con.SaveConfig()
-								utils.Con.LoadState()
-								break
-							}
-						}
+						UpdateConfig(Config.Email)
 						fmt.Println(utils.Logo(fmt.Sprintf("[401] Account %v has become invalid.. (no longer is a valid Gamepass account)", Config.Email)))
 						return
 					case strings.Contains(Req.ResponseDetails.Body, "DUPLICATE"):
@@ -392,12 +375,17 @@ Exit:
 					C := fmt.Sprintf(`[%v] %v <%v> ~ [%v] {"status":"%v"} ms since last req %v`, ReqAmt, name, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, time.Since(LastReq))
 					fmt.Print(utils.Logo(C), "           \r")
 					utils.WriteToLogs(name, C+"\n")
-					switch Req.ResponseDetails.StatusCode {
-					case "200":
+					if strings.Contains(Req.ResponseDetails.StatusCode, "200") {
+						ReqAmt = 0
 						Req.Info.Name = name
-						*SnipedSingleIGN <- Req
-						*NameRecvChannel = true
+						if utils.Con.SkinChange.Link != "" {
+							go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Req.Bearer)
+						}
+						if utils.Con.SendWebhook {
+							go utils.SendWebhook(name, Req.Bearer)
+						}
 						fmt.Println(utils.Logo(fmt.Sprintf("%v claimed %v @ %v\n", Config.Email, name, Req.ResponseDetails.SentAt)))
+						*NameRecvChannel = true
 					}
 				} else if list {
 					var found bool
@@ -415,4 +403,31 @@ Exit:
 			Next = New
 		}
 	}
+}
+
+func UpdateConfig(Email string) {
+	var New []apiGO.Info
+	for _, acc := range utils.Bearer.Details {
+		if !strings.EqualFold(acc.Email, Email) {
+			New = append(New, acc)
+		}
+	}
+	utils.Bearer.Details = New
+	for i, acc := range utils.Con.Bearers {
+		if strings.EqualFold(acc.Email, Email) {
+			utils.Con.Bearers[i].NameChange = false
+			utils.Con.SaveConfig()
+			utils.Con.LoadState()
+			break
+		}
+	}
+	accs, _ := os.ReadFile("accounts.txt")
+	Scanner := bufio.NewScanner(bytes.NewBuffer(accs))
+	var N []string
+	for Scanner.Scan() {
+		if Text := Scanner.Text(); !strings.EqualFold(Email, strings.Split(Text, ":")[0]) {
+			N = append(N, Text)
+		}
+	}
+	os.WriteFile("accounts.txt", []byte(strings.Join(N, "\n")), 0644)
 }

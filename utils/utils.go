@@ -63,15 +63,7 @@ func SendWebhook(name, bearer string) {
 		Bearer string `json:"bearer"`
 		Url    string `json:"icon_url"`
 	}
-	resp, _ := http.Post(fmt.Sprintf("https://buxflip.com/data/webhook/%v/%v", Con.DiscordID, name), "application/json", bytes.NewBuffer(apiGO.JsonValue(Payload{Name: name, Bearer: bearer, Url: GetHeadUrl(name)})))
-	if resp.StatusCode == 200 {
-		fmt.Println("Succesfully sent webhook!")
-	} else {
-		if resp.Body != nil {
-			body, _ := io.ReadAll(resp.Body)
-			fmt.Println("Error: While sending webhook returned this body > " + string(body))
-		}
-	}
+	http.Post(fmt.Sprintf("https://buxflip.com/data/webhook/%v/%v", Con.DiscordID, name), "application/json", bytes.NewBuffer(apiGO.JsonValue(Payload{Name: name, Bearer: bearer, Url: GetHeadUrl(name)})))
 }
 
 func GetHeadUrl(name string) string {
@@ -82,6 +74,9 @@ func GetHeadUrl(name string) string {
 			Head string `json:"headurl"`
 		}
 		json.Unmarshal([]byte(apiGO.ReturnJustString(io.ReadAll(resp.Body))), &J)
+		if J.Head == "" {
+			return "https://s.namemc.com/2d/skin/face.png?id=23ba96021149f38e&scale=4"
+		}
 		return J.Head
 	}
 	return "https://s.namemc.com/2d/skin/face.png?id=23ba96021149f38e&scale=4"
@@ -97,26 +92,29 @@ func IsAvailable(name string) bool {
 }
 
 func GetDroptimes(name string) (int64, int64, string, string) {
+	var st, se string
 	if conn, err := (&h2.Client{Config: h2.GetDefaultConfig()}).Connect("https://namemc.com/search?q="+name, h2.ReqConfig{ID: 1, BuildID: tls2.HelloChrome_100, DataBodyMaxLength: 167859}); err == nil {
 		if resp, err := conn.Do(h2.MethodGet, "", "", nil); err == nil && resp.Status == "200" {
 			doc, _ := goquery.NewDocumentFromReader(bytes.NewBuffer(resp.Data))
+			if d, err := html.Parse(strings.NewReader(string(resp.Data))); err == nil {
+				if status, searches := html.FindOne(d, `//*[@id="status-bar"]/div/div[1]/div[2]`), html.FindOne(d, `//*[@id="status-bar"]/div/div[2]/div[2]`); status.FirstChild != nil && searches.FirstChild != nil {
+					st = status.FirstChild.Data
+					se = strings.Split(searches.FirstChild.Data, " / month")[0]
+				}
+			}
 			if b, ok := doc.Find(`#availability-time`).Attr("datetime"); ok {
 				if e, ok := doc.Find(`#availability-time2`).Attr("datetime"); ok {
 					if t1, err := time.Parse(time.RFC3339, b); err == nil {
 						if t2, err := time.Parse(time.RFC3339, e); err == nil {
-							if d, err := html.Parse(strings.NewReader(string(resp.Data))); err == nil {
-								if status, searches := html.FindOne(d, `//*[@id="status-bar"]/div/div[1]/div[2]`), html.FindOne(d, `//*[@id="status-bar"]/div/div[2]/div[2]`); status.FirstChild != nil && searches.FirstChild != nil {
-									return t1.Unix(), t2.Unix(), status.FirstChild.Data, strings.Split(searches.FirstChild.Data, " / month")[0]
-								}
-							}
-							return t1.Unix(), t2.Unix(), "", ""
+
+							return t1.Unix(), t2.Unix(), st, se
 						}
 					}
 				}
 			}
 		}
 	}
-	return 0, 0, "", ""
+	return 0, 0, st, se
 }
 
 func WriteToLogs(name, logs string) {
