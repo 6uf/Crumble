@@ -304,6 +304,7 @@ func GetDiscordUsername(ID string) string {
 }
 
 var ReqAmt int
+var LastReq time.Time
 
 func Snipe(Config apiGO.Info, name string, NameRecvChannel *bool, SnipedSingleIGN *chan apiGO.Details, list bool, names *[]utils.Names, ListName *chan string) {
 	Next := time.Now()
@@ -323,6 +324,7 @@ Exit:
 			}
 		default:
 			New := Next.Add(time.Duration(utils.Con.TimeBetweenSleeps) * time.Millisecond)
+			LastReq = time.Now()
 			for _, Acc := range utils.Bearer.Details {
 				if strings.EqualFold(Acc.Email, Config.Email) {
 					Config = Acc
@@ -387,7 +389,7 @@ Exit:
 							Details.Data.Status = "UNKNOWN:" + Req.ResponseDetails.StatusCode
 						}
 					}
-					C := fmt.Sprintf(`[%v] <%v> ~ [%v] {"status":"%v","name":"%v","account_type":"%v"}`, ReqAmt, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, name, Config.AccountType)
+					C := fmt.Sprintf(`[%v] %v <%v> ~ [%v] {"status":"%v"} ms since last req %v`, ReqAmt, name, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, time.Since(LastReq))
 					fmt.Print(utils.Logo(C), "           \r")
 					utils.WriteToLogs(name, C+"\n")
 					switch Req.ResponseDetails.StatusCode {
