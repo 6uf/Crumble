@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"io"
+	"main/webhook"
 	"os"
 	"strings"
 )
@@ -51,11 +52,9 @@ func (s *Config) LoadState() {
 		s.FirstUse = true
 		s.SkinChange.Variant = "slim"
 		s.SkinChange.Link = "https://textures.minecraft.net/texture/516accb84322ca168a8cd06b4d8cc28e08b31cb0555eee01b64f9175cefe7b75"
-		s.Gradient = []Values{
-			{R: "125", G: "110", B: "221"},
-			{R: "90%", G: "45%", B: "97%"},
-		}
-		s.TimeBetweenSleeps = 16000
+		s.Gradient = []Values{{R: "125", G: "110", B: "221"}, {R: "90%", G: "45%", B: "97%"}}
+		s.TimeBetweenSleeps = 15000
+		s.Webhook = webhook.Web{Embeds: []webhook.Embeds{{Description: "<@{id}> has succesfully sniped {namme} with {searches} searches!", URL: "https://namemc.com/profile/{name}", Color: 5814783, Author: webhook.Author{Name: "{name}", URL: "{headurl}", IconURL: "{headurl}"}, Footer: webhook.Footer{Text: "", IconURL: ""}}}}
 		s.SaveConfig()
 		return
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"main/utils"
+	"main/webhook"
 	"math/rand"
 	"net/http"
 	"os"
@@ -24,6 +25,22 @@ func TempCalc() time.Duration {
 	return time.Duration(15000/len(utils.Bearer.Details)) * time.Millisecond
 }
 
+func BuildWebhook(name, searches, headurl string) []byte {
+	new := utils.Con.Webhook
+	for i := range new.Embeds {
+		new.Embeds[i].Description = strings.Replace(new.Embeds[i].Description, "{name}", name, -1)
+		new.Embeds[i].Description = strings.Replace(new.Embeds[i].Description, "{searches}", searches, -1)
+		new.Embeds[i].Description = strings.Replace(new.Embeds[i].Description, "{id}", utils.Con.DiscordID, -1)
+		new.Embeds[i].Author.Name = strings.Replace(new.Embeds[i].Author.Name, "{name}", name, -1)
+		new.Embeds[i].Author.IconURL = strings.Replace(new.Embeds[i].Author.IconURL, "{headurl}", headurl, -1)
+		new.Embeds[i].Author.URL = strings.Replace(new.Embeds[i].Author.URL, "{headurl}", headurl, -1)
+		new.Embeds[i].URL = strings.Replace(new.Embeds[i].URL, "{name}", name, -1)
+	}
+	json, _ := json.Marshal(new)
+	fmt.Println(string(json))
+	return json
+}
+
 func init() {
 	utils.Roots.AppendCertsFromPEM(utils.ProxyByte)
 	apiGO.Clear()
@@ -38,7 +55,6 @@ _  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
 \____/  /_/    \__,_/ /_/ /_/ /_//_.___//_/  \___/ 
 
 `))
-
 	if utils.Con.DiscordID == "" {
 		fmt.Print(utils.Logo("Discord ID: "))
 		fmt.Scan(&utils.Con.DiscordID)
@@ -358,6 +374,8 @@ Exit:
 						Details.Data.Status = "DUPLICATE"
 					case strings.Contains(Req.ResponseDetails.Body, "NOT_ALLOWED"):
 						Details.Data.Status = "NOT_ALLOWED"
+						fmt.Println(utils.Logo(name + " is currently blocked!"))
+						return
 					default:
 						switch Req.ResponseDetails.StatusCode {
 						case "429":
@@ -366,6 +384,27 @@ Exit:
 							Details.Data.Status = "UNAUTHORIZED"
 						case "200":
 							Details.Data.Status = "CLAIMED"
+							ReqAmt = 0
+							Req.Info.Name = name
+							if utils.Con.SkinChange.Link != "" {
+								go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Req.Bearer)
+							}
+							if utils.Con.SendWebhook {
+								go utils.SendWebhook(name, Req.Bearer)
+							}
+							if utils.Con.UseWebhook {
+								go func() {
+									_, _, _, searches := utils.GetDroptimes(name)
+									err, ok := webhook.Webhook(utils.Con.WebhookURL, BuildWebhook(name, searches, utils.GetHeadUrl(name)))
+									if err != nil {
+										fmt.Println(utils.Logo(err.Error()))
+									} else if ok {
+										fmt.Println(utils.Logo("Succesfully sent personal webhook!"))
+									}
+								}()
+							}
+							fmt.Println(utils.Logo(fmt.Sprintf("%v claimed %v @ %v\n", Config.Email, name, Req.ResponseDetails.SentAt)))
+							*NameRecvChannel = true
 						case "":
 							Details.Data.Status = "DEAD_PROXY"
 						default:
@@ -375,18 +414,6 @@ Exit:
 					C := fmt.Sprintf(`[%v] %v <%v> ~ [%v] {"status":"%v"} ms since last req %v`, ReqAmt, name, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, time.Since(LastReq))
 					fmt.Print(utils.Logo(C), "           \r")
 					utils.WriteToLogs(name, C+"\n")
-					if strings.Contains(Req.ResponseDetails.StatusCode, "200") {
-						ReqAmt = 0
-						Req.Info.Name = name
-						if utils.Con.SkinChange.Link != "" {
-							go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Req.Bearer)
-						}
-						if utils.Con.SendWebhook {
-							go utils.SendWebhook(name, Req.Bearer)
-						}
-						fmt.Println(utils.Logo(fmt.Sprintf("%v claimed %v @ %v\n", Config.Email, name, Req.ResponseDetails.SentAt)))
-						*NameRecvChannel = true
-					}
 				} else if list {
 					var found bool
 					for _, names := range *names {

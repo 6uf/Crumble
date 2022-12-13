@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/x509"
+	"main/webhook"
 	"time"
 
 	"github.com/6uf/apiGO"
@@ -39,8 +40,11 @@ type Config struct {
 	UseCustomSpread    bool            `json:"use_own_spread_value"`
 	Spread             int64           `json:"spread_ms"`
 	TimeBetweenSleeps  int64           `json:"sleepbetweensends"`
-	Bearers            []apiGO.Bearers `json:"Bearers"`
 	FirstUse           bool            `json:"firstuse"`
+	UseWebhook         bool            `json:"sendpersonalwhonsnipe"`
+	WebhookURL         string          `json:"webhook_url"`
+	Webhook            webhook.Web     `json:"webhook_json"`
+	Bearers            []apiGO.Bearers `json:"Bearers"`
 }
 
 type Gradient struct {
