@@ -39,7 +39,6 @@ type Config struct {
 	SendWebhook        bool            `json:"sendwebhook"`
 	UseCustomSpread    bool            `json:"use_own_spread_value"`
 	Spread             int64           `json:"spread_ms"`
-	TimeBetweenSleeps  int64           `json:"sleepbetweensends"`
 	FirstUse           bool            `json:"firstuse"`
 	UseWebhook         bool            `json:"sendpersonalwhonsnipe"`
 	WebhookURL         string          `json:"webhook_url"`

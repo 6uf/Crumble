@@ -21,8 +21,8 @@ import (
 
 var Username = ""
 
-func TempCalc() time.Duration {
-	return time.Duration(int(utils.Con.TimeBetweenSleeps)/len(utils.Bearer.Details)) * time.Millisecond
+func TempCalc(interval int) time.Duration {
+	return time.Duration(interval/len(utils.Bearer.Details)) * time.Millisecond
 }
 
 func BuildWebhook(name, searches, headurl string) []byte {
@@ -110,12 +110,7 @@ func main() {
 			"snipe": {
 				Description: "Main sniper command, targets only one ign that is passed through with -u",
 				Action: func() {
-					cl, name, Spread, Changed, Dummy, c, ChangeDetected := false, StrCmd.String("-u"), time.Millisecond, false, make(chan string), make(chan os.Signal, 1), make(chan apiGO.Details)
-					if utils.Con.UseCustomSpread {
-						Spread = time.Duration(utils.Con.Spread) * time.Millisecond
-					} else {
-						Spread = TempCalc()
-					}
+					cl, name, Changed, Dummy, c := false, StrCmd.String("-u"), false, make(chan string), make(chan os.Signal, 1)
 					signal.Notify(c, os.Interrupt)
 					start, end, status, searches := utils.GetDroptimes(name)
 					drop := time.Unix(start, 0)
@@ -149,7 +144,6 @@ func main() {
 					}()
 					fmt.Print(utils.Logo(fmt.Sprintf(`
 Name(s)    ~ %v
-Spread     ~ %v
 Proxies    ~ %v
 Account(s) ~ %v
 Searches   ~ %v
@@ -157,9 +151,38 @@ Status     ~ %v
 Start      ~ %v
 End        ~ %v
 
-`, name, Spread, len(utils.Proxy.Proxys), len(utils.Bearer.Details), searches, status, time.Unix(start, 0), time.Unix(end, 0))))
-					for _, Config := range utils.Bearer.Details {
-						go Snipe(Config, name, &Changed, false, nil, &Dummy)
+`, name, len(utils.Proxy.Proxys), len(utils.Bearer.Details), searches, status, time.Unix(start, 0), time.Unix(end, 0))))
+					var Accs_value []struct {
+						Proxy   string
+						Account apiGO.Info
+					}
+					for i, proxy := range utils.Proxy.Proxys {
+						if i < len(utils.Bearer.Details) {
+							Accs_value = append(Accs_value, struct {
+								Proxy   string
+								Account apiGO.Info
+							}{Proxy: proxy, Account: utils.Bearer.Details[i]})
+						}
+					}
+					for _, Config := range Accs_value {
+						Spread, SleepLength := time.Millisecond, time.Millisecond
+						if utils.Con.UseCustomSpread {
+							Spread = time.Duration(utils.Con.Spread) * time.Millisecond
+							if Config.Account.AccountType == "Giftcard" {
+								SleepLength = time.Millisecond * 15000
+							} else {
+								SleepLength = time.Millisecond * 10000
+							}
+						} else {
+							if Config.Account.AccountType == "Giftcard" {
+								Spread = TempCalc(15000)
+								SleepLength = time.Millisecond * 15000
+							} else {
+								Spread = TempCalc(10000)
+								SleepLength = time.Millisecond * 10000
+							}
+						}
+						go Snipe(Config.Account, SleepLength, name, &Changed, false, nil, &Dummy, Config.Proxy)
 						time.Sleep(Spread)
 					}
 				Exit:
@@ -171,20 +194,7 @@ End        ~ %v
 							signal.Stop(c)
 							break Exit
 						}
-						select {
-						case Req := <-ChangeDetected:
-							if utils.Con.SkinChange.Link != "" {
-								go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Req.Bearer)
-							}
-							if utils.Con.SendWebhook {
-								go utils.SendWebhook(name, Req.Bearer)
-							}
-							fmt.Println(utils.Logo(fmt.Sprintf("[%v] Succesfully sniped! - %v", name, Req.Email)))
-							signal.Stop(c)
-							break Exit
-						default:
-							time.Sleep(10 * time.Second)
-						}
+						time.Sleep(1 * time.Second)
 					}
 				},
 				Args: []string{
@@ -196,7 +206,7 @@ End        ~ %v
 				Action: func() {
 					accs, _ := os.ReadFile("names.txt")
 					var plain_accs []string
-					Spread, ListName, Accs, Scanner, c := TempCalc(), make(chan string), []utils.Names{}, bufio.NewScanner(bytes.NewBuffer(accs)), make(chan os.Signal, 1)
+					ListName, Accs, Scanner, c := make(chan string), []utils.Names{}, bufio.NewScanner(bytes.NewBuffer(accs)), make(chan os.Signal, 1)
 					signal.Notify(c, os.Interrupt)
 					for Scanner.Scan() {
 						if Text := Scanner.Text(); Text != "" {
@@ -221,20 +231,48 @@ End        ~ %v
 									if !n.Taken && utils.IsAvailable(n.Name) {
 										ListName <- Accs[i].Name
 									}
-									time.Sleep(10 * time.Second)
+									time.Sleep(1 * time.Second)
 								}
 							}
 						}
 					}()
 					fmt.Print(utils.Logo(fmt.Sprintf(`
 Name(s)    ~ %v
-Spread     ~ %v
 Proxies    ~ %v
 Account(s) ~ %v
 
-`, plain_accs, Spread, len(utils.Proxy.Proxys), len(utils.Bearer.Details))))
-					for _, Config := range utils.Bearer.Details {
-						go Snipe(Config, "", &[]bool{false}[0], true, &Accs, &ListName)
+`, plain_accs, len(utils.Proxy.Proxys), len(utils.Bearer.Details))))
+					var Accs_value []struct {
+						Proxy   string
+						Account apiGO.Info
+					}
+					for i, proxy := range utils.Proxy.Proxys {
+						if i < len(utils.Bearer.Details) {
+							Accs_value = append(Accs_value, struct {
+								Proxy   string
+								Account apiGO.Info
+							}{Proxy: proxy, Account: utils.Bearer.Details[i]})
+						}
+					}
+					for _, Config := range Accs_value {
+						Spread, SleepLength := time.Millisecond, time.Millisecond
+						if utils.Con.UseCustomSpread {
+							Spread = time.Duration(utils.Con.Spread) * time.Millisecond
+							if Config.Account.AccountType == "Giftcard" {
+								SleepLength = time.Millisecond * 15000
+							} else {
+								SleepLength = time.Millisecond * 10000
+							}
+						} else {
+							if Config.Account.AccountType == "Giftcard" {
+								Spread = TempCalc(15000)
+								SleepLength = time.Millisecond * 15000
+							} else {
+								Spread = TempCalc(10000)
+								SleepLength = time.Millisecond * 10000
+							}
+						}
+						go Snipe(Config.Account, SleepLength, "", &[]bool{false}[0], true, &Accs, &ListName, Config.Proxy)
 						time.Sleep(Spread)
 					}
 				Exit:
@@ -249,36 +287,6 @@ Account(s) ~ %v
 							break Exit
 						}
 						time.Sleep(10 * time.Second)
-					}
-				},
-			},
-			"key": {
-				Description: "Gets your namemc key!",
-				Action: func() {
-					var details string
-					fmt.Print(utils.Logo("[email:pass] > "))
-					fmt.Scan(&details)
-					if acc := strings.Split(details, ":"); len(acc) > 0 {
-						if len(utils.Proxy.Proxys) > 0 {
-							ip, port, user, pass := "", "", "", ""
-							switch data := strings.Split(utils.Proxy.CompRand(), ":"); len(data) {
-							case 2:
-								ip = data[0]
-								port = data[1]
-							case 4:
-								ip = data[0]
-								port = data[1]
-								user = data[2]
-								pass = data[3]
-							}
-							Acc := apiGO.MS_authentication(acc[0], acc[1], &apiGO.ProxyMS{
-								IP: ip, Port: port, User: user, Password: pass,
-							})
-							fmt.Println(utils.Logo(apiGO.NameMC(Acc.Bearer, Acc.Info)))
-						} else {
-							Acc := apiGO.MS_authentication(acc[0], acc[1], nil)
-							fmt.Println(utils.Logo(apiGO.NameMC(Acc.Bearer, Acc.Info)))
-						}
 					}
 				},
 			},
@@ -317,7 +325,7 @@ func GetDiscordUsername(ID string) string {
 var ReqAmt int
 var LastReq time.Time
 
-func Snipe(Config apiGO.Info, name string, NameRecvChannel *bool, list bool, names *[]utils.Names, ListName *chan string) {
+func Snipe(Config apiGO.Info, Spread time.Duration, name string, NameRecvChannel *bool, list bool, names *[]utils.Names, ListName *chan string, proxy string) {
 	Next := time.Now()
 Exit:
 	for {
@@ -334,7 +342,7 @@ Exit:
 				}
 			}
 		default:
-			New := Next.Add(time.Duration(utils.Con.TimeBetweenSleeps) * time.Millisecond)
+			New := Next.Add(Spread)
 			LastReq = time.Now()
 			for _, Acc := range utils.Bearer.Details {
 				if strings.EqualFold(Acc.Email, Config.Email) {
@@ -343,7 +351,7 @@ Exit:
 				}
 			}
 			time.Sleep(New.Sub(time.Unix(New.Unix()-5, 0)))
-			if proxy := utils.Connect(utils.Proxy.CompRand()); proxy.Alive {
+			if proxy := utils.Connect(proxy); proxy.Alive {
 				var Payload string
 				if list {
 					if Data := (*names)[rand.Intn(len(*names))]; !Data.Taken {
@@ -357,7 +365,7 @@ Exit:
 				time.Sleep(time.Until(Next))
 				if Payload != "" && !*NameRecvChannel {
 					ReqAmt++
-					Req := apiGO.Details{ResponseDetails: apiGO.SocketSending(proxy.Proxy, "\r\n"), Bearer: Config.Bearer, Email: Config.Email, Type: Config.AccountType, Info: Config.Info}
+					Req := apiGO.Details{ResponseDetails: apiGO.SocketSending(proxy.Proxy, "\r\n"), Bearer: Config.Bearer, Email: Config.Email, Type: Config.AccountType}
 					var Details utils.Status
 					switch true {
 					case strings.Contains(Req.ResponseDetails.Body, "ALREADY_REGISTERED"):
@@ -385,7 +393,6 @@ Exit:
 						case "200":
 							Details.Data.Status = "CLAIMED"
 							ReqAmt = 0
-							Req.Info.Name = name
 							if utils.Con.SkinChange.Link != "" {
 								go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Req.Bearer)
 							}

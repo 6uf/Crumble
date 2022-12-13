@@ -10,9 +10,30 @@ import (
 	"time"
 
 	"github.com/6uf/apiGO"
+	"github.com/6uf/h2"
 )
 
 func AuthAccs() {
+	grabDetails()
+	if len(Con.Bearers) == 0 {
+		fmt.Println(Logo("No Bearers have been found, please check your details."))
+		os.Exit(0)
+	} else {
+		checkifValid()
+		for _, Accs := range Con.Bearers {
+			if Accs.NameChange {
+				Bearer.Details = append(Bearer.Details, apiGO.Info{
+					Bearer:      Accs.Bearer,
+					AccountType: Accs.Type,
+					Email:       Accs.Email,
+				})
+			}
+		}
+	}
+}
+
+func grabDetails() {
+
 	var AccountsVer []string
 	file, _ := os.Open("accounts.txt")
 
@@ -28,34 +49,7 @@ func AuthAccs() {
 	}
 
 	CheckDupes(AccountsVer)
-	grabDetails(AccountsVer)
 
-	if len(Con.Bearers) == 0 {
-		fmt.Println(Logo("No Bearers have been found, please check your details."))
-		rewrite("accounts.txt", strings.Join(AccountsVer, "\n"))
-		os.Exit(0)
-	} else {
-		checkifValid(AccountsVer)
-		rewrite("accounts.txt", strings.Join(AccountsVer, "\n"))
-		if len(AccountsVer) != 0 {
-			for _, Accs := range Con.Bearers {
-				if Accs.NameChange {
-					Bearer.Details = append(Bearer.Details, apiGO.Info{
-						Bearer:      Accs.Bearer,
-						AccountType: Accs.Type,
-						Email:       Accs.Email,
-						Info:        Accs.Info,
-					})
-				}
-			}
-		} else {
-			fmt.Println(Logo("Unable to find any usable Accounts."))
-			os.Exit(0)
-		}
-	}
-}
-
-func grabDetails(AccountsVer []string) []string {
 	if Con.Bearers == nil {
 		var wg sync.WaitGroup
 		for _, acc := range AccountsVer {
@@ -74,10 +68,11 @@ func grabDetails(AccountsVer []string) []string {
 							user = data[2]
 							pass = data[3]
 						}
+						var Remove []string
 						switch info := apiGO.MS_authentication(acc[0], acc[1], &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}); true {
 						case info.Error != "":
 							fmt.Println(Logo(fmt.Sprintf("Account %v came up Invalid: %v", info.Email, info.Error)))
-						case info.Bearer != "" && apiGO.CheckChange(info.Bearer):
+						case info.Bearer != "" && apiGO.CheckChange(info.Bearer, &h2.ProxyAuth{IP: ip, Port: port, User: user, Password: pass}):
 							fmt.Println(Logo(fmt.Sprintf("[%v] Succesfully authed %v", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))))
 							Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 								Bearer:       info.Bearer,
@@ -87,19 +82,37 @@ func grabDetails(AccountsVer []string) []string {
 								Email:        info.Email,
 								Password:     info.Password,
 								NameChange:   true,
-								Info:         info.Info,
 							})
 						default:
-							AccountsVer = remove(AccountsVer, info.Email+":"+info.Password)
+							Remove = append(Remove, info.Email+":"+info.Password)
 							fmt.Println(Logo(fmt.Sprintf("Account %v Bearer is nil or it cannot name change.. [%v]", acc[0], acc[1])))
 						}
+
+						if len(Remove) > 0 {
+							var Accs []string
+							file, _ := os.Open("accounts.txt")
+							scanner := bufio.NewScanner(file)
+							for scanner.Scan() {
+								Accs = append(Accs, scanner.Text())
+							}
+							file.Close()
+							var New []string
+							for _, acc := range Accs {
+								if !strings.Contains(strings.Join(Remove, "\n"), acc) {
+									New = append(New, acc)
+								}
+							}
+							rewrite("accounts.txt", strings.Join(New, "\n"))
+						}
+
 						wg.Done()
 					}()
 				} else {
+					var Remove []string
 					switch info := apiGO.MS_authentication(acc[0], acc[1], nil); true {
 					case info.Error != "":
 						fmt.Println(Logo(fmt.Sprintf("Account %v came up Invalid: %v", info.Email, info.Error)))
-					case info.Bearer != "" && apiGO.CheckChange(info.Bearer):
+					case info.Bearer != "" && apiGO.CheckChange(info.Bearer, nil):
 						fmt.Println(Logo(fmt.Sprintf("[%v] Succesfully authed %v", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))))
 						Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 							Bearer:       info.Bearer,
@@ -109,11 +122,26 @@ func grabDetails(AccountsVer []string) []string {
 							Email:        info.Email,
 							Password:     info.Password,
 							NameChange:   true,
-							Info:         info.Info,
 						})
 					default:
-						AccountsVer = remove(AccountsVer, info.Email+":"+info.Password)
+						Remove = append(Remove, info.Email+":"+info.Password)
 						fmt.Println(Logo(fmt.Sprintf("Account %v Bearer is nil or it cannot name change.. [%v]", acc[0], acc[1])))
+					}
+					if len(Remove) > 0 {
+						var Accs []string
+						file, _ := os.Open("accounts.txt")
+						scanner := bufio.NewScanner(file)
+						for scanner.Scan() {
+							Accs = append(Accs, scanner.Text())
+						}
+						file.Close()
+						var New []string
+						for _, acc := range Accs {
+							if !strings.Contains(strings.Join(Remove, "\n"), acc) {
+								New = append(New, acc)
+							}
+						}
+						rewrite("accounts.txt", strings.Join(New, "\n"))
 					}
 				}
 			}
@@ -149,10 +177,11 @@ func grabDetails(AccountsVer []string) []string {
 							user = data[2]
 							pass = data[3]
 						}
+						var Remove []string
 						switch info := apiGO.MS_authentication(acc[0], acc[1], &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}); true {
 						case info.Error != "":
 							fmt.Println(Logo(fmt.Sprintf("Account %v came up Invalid: %v", info.Email, info.Error)))
-						case info.Bearer != "" && apiGO.CheckChange(info.Bearer):
+						case info.Bearer != "" && apiGO.CheckChange(info.Bearer, &h2.ProxyAuth{IP: ip, Port: port, User: user, Password: pass}):
 							fmt.Println(Logo(fmt.Sprintf("[%v] Succesfully authed %v", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))))
 							Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 								Bearer:       info.Bearer,
@@ -162,19 +191,35 @@ func grabDetails(AccountsVer []string) []string {
 								Email:        info.Email,
 								Password:     info.Password,
 								NameChange:   true,
-								Info:         info.Info,
 							})
 						default:
-							AccountsVer = remove(AccountsVer, info.Email+":"+info.Password)
+							Remove = append(Remove, info.Email+":"+info.Password)
 							fmt.Println(Logo(fmt.Sprintf("Account %v Bearer is nil or it cannot name change.. [%v]", acc[0], acc[1])))
+						}
+						if len(Remove) > 0 {
+							var Accs []string
+							file, _ := os.Open("accounts.txt")
+							scanner := bufio.NewScanner(file)
+							for scanner.Scan() {
+								Accs = append(Accs, scanner.Text())
+							}
+							file.Close()
+							var New []string
+							for _, acc := range Accs {
+								if !strings.Contains(strings.Join(Remove, "\n"), acc) {
+									New = append(New, acc)
+								}
+							}
+							rewrite("accounts.txt", strings.Join(New, "\n"))
 						}
 						wg.Done()
 					}()
 				} else {
+					var Remove []string
 					switch info := apiGO.MS_authentication(acc[0], acc[1], nil); true {
 					case info.Error != "":
 						fmt.Println(Logo(fmt.Sprintf("Account %v came up Invalid: %v", info.Email, info.Error)))
-					case info.Bearer != "" && apiGO.CheckChange(info.Bearer):
+					case info.Bearer != "" && apiGO.CheckChange(info.Bearer, nil):
 						fmt.Println(Logo(fmt.Sprintf("[%v] Succesfully authed %v", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))))
 						Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 							Bearer:       info.Bearer,
@@ -184,11 +229,26 @@ func grabDetails(AccountsVer []string) []string {
 							Email:        info.Email,
 							Password:     info.Password,
 							NameChange:   true,
-							Info:         info.Info,
 						})
 					default:
-						AccountsVer = remove(AccountsVer, info.Email+":"+info.Password)
+						Remove = append(Remove, info.Email+":"+info.Password)
 						fmt.Println(Logo(fmt.Sprintf("Account %v Bearer is nil or it cannot name change.. [%v]", acc[0], acc[1])))
+					}
+					if len(Remove) > 0 {
+						var Accs []string
+						file, _ := os.Open("accounts.txt")
+						scanner := bufio.NewScanner(file)
+						for scanner.Scan() {
+							Accs = append(Accs, scanner.Text())
+						}
+						file.Close()
+						var New []string
+						for _, acc := range Accs {
+							if !strings.Contains(strings.Join(Remove, "\n"), acc) {
+								New = append(New, acc)
+							}
+						}
+						rewrite("accounts.txt", strings.Join(New, "\n"))
 					}
 				}
 			}
@@ -209,11 +269,9 @@ func grabDetails(AccountsVer []string) []string {
 
 	Con.SaveConfig()
 	Con.LoadState()
-
-	return AccountsVer
 }
 
-func checkifValid(AccountsVer []string) []string {
+func checkifValid() {
 	var reAuth []string
 	for _, Accs := range Con.Bearers {
 		f, _ := http.NewRequest("GET", "https://api.minecraftservices.com/minecraft/profile/name/boom/available", nil)
@@ -244,10 +302,11 @@ func checkifValid(AccountsVer []string) []string {
 							user = data[2]
 							pass = data[3]
 						}
+						var Remove []string
 						switch info := apiGO.MS_authentication(acc[0], acc[1], &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}); true {
 						case info.Error != "":
 							fmt.Println(Logo(fmt.Sprintf("Account %v came up Invalid: %v", info.Email, info.Error)))
-						case info.Bearer != "" && apiGO.CheckChange(info.Bearer):
+						case info.Bearer != "" && apiGO.CheckChange(info.Bearer, &h2.ProxyAuth{IP: ip, Port: port, User: user, Password: pass}):
 							fmt.Println(Logo(fmt.Sprintf("[%v] Succesfully authed %v", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))))
 							Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 								Bearer:       info.Bearer,
@@ -257,19 +316,35 @@ func checkifValid(AccountsVer []string) []string {
 								Email:        info.Email,
 								Password:     info.Password,
 								NameChange:   true,
-								Info:         info.Info,
 							})
 						default:
-							AccountsVer = remove(AccountsVer, info.Email+":"+info.Password)
+							Remove = append(Remove, info.Email+":"+info.Password)
 							fmt.Println(Logo(fmt.Sprintf("Account %v Bearer is nil or it cannot name change.. [%v]", acc[0], acc[1])))
+						}
+						if len(Remove) > 0 {
+							var Accs []string
+							file, _ := os.Open("accounts.txt")
+							scanner := bufio.NewScanner(file)
+							for scanner.Scan() {
+								Accs = append(Accs, scanner.Text())
+							}
+							file.Close()
+							var New []string
+							for _, acc := range Accs {
+								if !strings.Contains(strings.Join(Remove, "\n"), acc) {
+									New = append(New, acc)
+								}
+							}
+							rewrite("accounts.txt", strings.Join(New, "\n"))
 						}
 						wg.Done()
 					}()
 				} else {
+					var Remove []string
 					switch info := apiGO.MS_authentication(acc[0], acc[1], nil); true {
 					case info.Error != "":
 						fmt.Println(Logo(fmt.Sprintf("Account %v came up Invalid: %v", info.Email, info.Error)))
-					case info.Bearer != "" && apiGO.CheckChange(info.Bearer):
+					case info.Bearer != "" && apiGO.CheckChange(info.Bearer, nil):
 						fmt.Println(Logo(fmt.Sprintf("[%v] Succesfully authed %v", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))))
 						Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 							Bearer:       info.Bearer,
@@ -279,11 +354,26 @@ func checkifValid(AccountsVer []string) []string {
 							Email:        info.Email,
 							Password:     info.Password,
 							NameChange:   true,
-							Info:         info.Info,
 						})
 					default:
-						AccountsVer = remove(AccountsVer, info.Email+":"+info.Password)
+						Remove = append(Remove, info.Email+":"+info.Password)
 						fmt.Println(Logo(fmt.Sprintf("Account %v Bearer is nil or it cannot name change.. [%v]", acc[0], acc[1])))
+					}
+					if len(Remove) > 0 {
+						var Accs []string
+						file, _ := os.Open("accounts.txt")
+						scanner := bufio.NewScanner(file)
+						for scanner.Scan() {
+							Accs = append(Accs, scanner.Text())
+						}
+						file.Close()
+						var New []string
+						for _, acc := range Accs {
+							if !strings.Contains(strings.Join(Remove, "\n"), acc) {
+								New = append(New, acc)
+							}
+						}
+						rewrite("accounts.txt", strings.Join(New, "\n"))
 					}
 				}
 			}
@@ -293,17 +383,6 @@ func checkifValid(AccountsVer []string) []string {
 
 	Con.SaveConfig()
 	Con.LoadState()
-
-	return AccountsVer
-}
-
-func remove(l []string, item string) []string {
-	for i, other := range l {
-		if other == item {
-			l = append(l[:i], l[i+1:]...)
-		}
-	}
-	return l
 }
 
 func rewrite(path, accounts string) {
@@ -352,7 +431,7 @@ func CheckAccs() {
 					}
 
 					switch info := apiGO.MS_authentication(Accs.Email, Accs.Password, &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}); true {
-					case info.Bearer != "" && apiGO.CheckChange(info.Bearer) && info.Error == "":
+					case info.Bearer != "" && apiGO.CheckChange(info.Bearer, &h2.ProxyAuth{IP: ip, Port: port, User: user, Password: pass}) && info.Error == "":
 						if Accs.Email == info.Email {
 							Con.Bearers[point] = apiGO.Bearers{
 								Bearer:     info.Bearer,
@@ -361,7 +440,6 @@ func CheckAccs() {
 								Password:   info.Password,
 								Email:      info.Email,
 								AuthedAt:   time.Now().Unix(),
-								Info:       info.Info,
 							}
 							for i, Bearers := range Bearer.Details {
 								if strings.EqualFold(Bearers.Email, info.Email) {
@@ -386,7 +464,7 @@ func CheckAccs() {
 					}
 				} else {
 					switch info := apiGO.MS_authentication(Accs.Email, Accs.Password, nil); true {
-					case info.Bearer != "" && apiGO.CheckChange(info.Bearer) && info.Error == "":
+					case info.Bearer != "" && apiGO.CheckChange(info.Bearer, nil) && info.Error == "":
 						if Accs.Email == info.Email {
 							Con.Bearers[point] = apiGO.Bearers{
 								Bearer:     info.Bearer,
@@ -395,7 +473,6 @@ func CheckAccs() {
 								Password:   info.Password,
 								Email:      info.Email,
 								AuthedAt:   time.Now().Unix(),
-								Info:       info.Info,
 							}
 							for i, Bearers := range Bearer.Details {
 								if strings.EqualFold(Bearers.Email, info.Email) {
