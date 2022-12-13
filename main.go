@@ -22,7 +22,7 @@ import (
 var Username = ""
 
 func TempCalc() time.Duration {
-	return time.Duration(15000/len(utils.Bearer.Details)) * time.Millisecond
+	return time.Duration(int(utils.Con.TimeBetweenSleeps)/len(utils.Bearer.Details)) * time.Millisecond
 }
 
 func BuildWebhook(name, searches, headurl string) []byte {
