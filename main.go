@@ -8,7 +8,6 @@ import (
 	"io"
 	"main/utils"
 	"main/webhook"
-	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -93,14 +92,8 @@ _  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
 	if file_name := "accounts.txt"; utils.CheckForValidFile(file_name) {
 		os.Create(file_name)
 	}
-	if file_name := "names.txt"; utils.CheckForValidFile(file_name) {
-		os.Create(file_name)
-	}
 	if file_name := "proxys.txt"; utils.CheckForValidFile(file_name) {
 		os.Create(file_name)
-	}
-	if _, err := os.Stat("logs"); os.IsNotExist(err) {
-		os.MkdirAll("logs/names", 0755)
 	}
 	utils.Proxy.GetProxys(false, nil)
 	utils.Proxy.Setup()
@@ -131,7 +124,7 @@ func main() {
 			"snipe": {
 				Description: "Main sniper command, targets only one ign that is passed through with -u",
 				Action: func() {
-					cl, name, Changed, Dummy, c := false, StrCmd.String("-u"), false, make(chan string), make(chan os.Signal, 1)
+					cl, name, Changed, c := false, StrCmd.String("-u"), false, make(chan os.Signal, 1)
 					signal.Notify(c, os.Interrupt)
 					start, end, status, searches := utils.GetDroptimes(name)
 					drop := time.Unix(start, 0)
@@ -203,7 +196,7 @@ End        ~ %v
 								SleepLength = time.Millisecond * 10000
 							}
 						}
-						go Snipe(Config.Account, SleepLength, name, &Changed, false, nil, &Dummy, Config.Proxy)
+						go Snipe(Config.Account, SleepLength, name, &Changed, Config.Proxy)
 						time.Sleep(Spread)
 					}
 				Exit:
@@ -220,95 +213,6 @@ End        ~ %v
 				},
 				Args: []string{
 					"-u",
-				},
-			},
-			"list": {
-				Description: "List snipes from accounts within the names.txt file and send req at random based on each.",
-				Action: func() {
-					accs, _ := os.ReadFile("names.txt")
-					var plain_accs []string
-					ListName, Accs, Scanner, c := make(chan string), []utils.Names{}, bufio.NewScanner(bytes.NewBuffer(accs)), make(chan os.Signal, 1)
-					signal.Notify(c, os.Interrupt)
-					for Scanner.Scan() {
-						if Text := Scanner.Text(); Text != "" {
-							plain_accs = append(plain_accs, Text)
-							Accs = append(Accs, utils.Names{
-								Name: Text,
-							})
-						}
-					}
-					go func() {
-					Exit:
-						for {
-							select {
-							case <-c:
-								signal.Stop(c)
-								for i := range Accs {
-									ListName <- Accs[i].Name
-								}
-								break Exit
-							default:
-								for i, n := range Accs {
-									if !n.Taken && utils.IsAvailable(n.Name) {
-										ListName <- Accs[i].Name
-									}
-									time.Sleep(1 * time.Second)
-								}
-							}
-						}
-					}()
-					fmt.Print(utils.Logo(fmt.Sprintf(`
-Name(s)    ~ %v
-Proxies    ~ %v
-Account(s) ~ %v
-
-`, plain_accs, len(utils.Proxy.Proxys), len(utils.Bearer.Details))))
-					var Accs_value []struct {
-						Proxy   string
-						Account apiGO.Info
-					}
-					for i, proxy := range utils.Proxy.Proxys {
-						if i < len(utils.Bearer.Details) {
-							Accs_value = append(Accs_value, struct {
-								Proxy   string
-								Account apiGO.Info
-							}{Proxy: proxy, Account: utils.Bearer.Details[i]})
-						}
-					}
-					for _, Config := range Accs_value {
-						Spread, SleepLength := time.Millisecond, time.Millisecond
-						if utils.Con.UseCustomSpread {
-							Spread = time.Duration(utils.Con.Spread) * time.Millisecond
-							if Config.Account.AccountType == "Giftcard" {
-								SleepLength = time.Millisecond * 15000
-							} else {
-								SleepLength = time.Millisecond * 10000
-							}
-						} else {
-							if Config.Account.AccountType == "Giftcard" {
-								Spread = TempCalc(15000)
-								SleepLength = time.Millisecond * 15000
-							} else {
-								Spread = TempCalc(10000)
-								SleepLength = time.Millisecond * 10000
-							}
-						}
-						go Snipe(Config.Account, SleepLength, "", &[]bool{false}[0], true, &Accs, &ListName, Config.Proxy)
-						time.Sleep(Spread)
-					}
-				Exit:
-					for {
-						Found := 0
-						for _, n := range Accs {
-							if !n.Taken {
-								Found++
-							}
-						}
-						if Found == 0 {
-							break Exit
-						}
-						time.Sleep(10 * time.Second)
-					}
 				},
 			},
 		},
@@ -346,22 +250,13 @@ func GetDiscordUsername(ID string) string {
 var ReqAmt int
 var LastReq time.Time
 
-func Snipe(Config apiGO.Info, Spread time.Duration, name string, NameRecvChannel *bool, list bool, names *[]utils.Names, ListName *chan string, proxy string) {
+func Snipe(Config apiGO.Info, Spread time.Duration, name string, NameRecvChannel *bool, proxy string) {
 	Next := time.Now()
 Exit:
 	for {
-		if *NameRecvChannel {
+		switch true {
+		case *NameRecvChannel:
 			break Exit
-		}
-		select {
-		case Data := <-*ListName:
-			if list {
-				for i, name := range *names {
-					if strings.EqualFold(Data, name.Name) {
-						(*names)[i].Taken = true
-					}
-				}
-			}
 		default:
 			New := Next.Add(Spread)
 			LastReq = time.Now()
@@ -373,15 +268,7 @@ Exit:
 			}
 			time.Sleep(New.Sub(time.Unix(New.Unix()-5, 0)))
 			if proxy := utils.Connect(proxy); proxy.Alive {
-				var Payload string
-				if list {
-					if Data := (*names)[rand.Intn(len(*names))]; !Data.Taken {
-						name = Data.Name
-						Payload = ReturnPayload(Config.AccountType, Config.Bearer, Data.Name)
-					}
-				} else {
-					Payload = ReturnPayload(Config.AccountType, Config.Bearer, name)
-				}
+				var Payload string = ReturnPayload(Config.AccountType, Config.Bearer, name)
 				fmt.Fprint(proxy.Proxy, Payload)
 				time.Sleep(time.Until(Next))
 				if Payload != "" && !*NameRecvChannel {
@@ -441,18 +328,6 @@ Exit:
 					}
 					C := fmt.Sprintf(`[%v] %v <%v> ~ [%v] {"status":"%v"} ms since last req %v`, ReqAmt, name, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, time.Since(LastReq))
 					fmt.Print(utils.Logo(C), "           \r")
-					utils.WriteToLogs(name, C+"\n")
-				} else if list {
-					var found bool
-					for _, names := range *names {
-						if !names.Taken {
-							found = true
-							break
-						}
-					}
-					if !found {
-						break Exit
-					}
 				}
 			}
 			Next = New

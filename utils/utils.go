@@ -117,17 +117,6 @@ func GetDroptimes(name string) (int64, int64, string, string) {
 	return 0, 0, st, se
 }
 
-func WriteToLogs(name, logs string) {
-	name = strings.ToLower(name)
-	body, err := os.ReadFile("logs/names/" + name + ".txt")
-	if os.IsNotExist(err) {
-		os.Create("logs/names/" + name + ".txt")
-	}
-	str := string(body)
-	str += logs
-	os.WriteFile("logs/names/"+name+".txt", []byte(str), 0644)
-}
-
 func Logo(Data string) string {
 	g, _ := gradient.NewGradientBuilder().
 		HtmlColors(RGB...).
