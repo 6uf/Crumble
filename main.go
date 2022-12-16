@@ -32,12 +32,18 @@ func BuildWebhook(name, searches, headurl string) []byte {
 		new.Embeds[i].Description = strings.Replace(new.Embeds[i].Description, "{searches}", searches, -1)
 		new.Embeds[i].Description = strings.Replace(new.Embeds[i].Description, "{id}", utils.Con.DiscordID, -1)
 		new.Embeds[i].Author.Name = strings.Replace(new.Embeds[i].Author.Name, "{name}", name, -1)
+		new.Embeds[i].Author.Name = strings.Replace(new.Embeds[i].Author.Name, "{searches}", searches, -1)
 		new.Embeds[i].Author.IconURL = strings.Replace(new.Embeds[i].Author.IconURL, "{headurl}", headurl, -1)
+		new.Embeds[i].Author.IconURL = strings.Replace(new.Embeds[i].Author.IconURL, "{name}", name, -1)
 		new.Embeds[i].Author.URL = strings.Replace(new.Embeds[i].Author.URL, "{headurl}", headurl, -1)
+		new.Embeds[i].Author.URL = strings.Replace(new.Embeds[i].Author.URL, "{name}", name, -1)
 		new.Embeds[i].URL = strings.Replace(new.Embeds[i].URL, "{name}", name, -1)
+		new.Embeds[i].Footer.Text = strings.Replace(new.Embeds[i].Footer.Text, "{name}", name, -1)
+		new.Embeds[i].Footer.Text = strings.Replace(new.Embeds[i].Footer.Text, "{searches}", searches, -1)
+		new.Embeds[i].Footer.IconURL = strings.Replace(new.Embeds[i].Footer.IconURL, "{name}", name, -1)
+		new.Embeds[i].Footer.IconURL = strings.Replace(new.Embeds[i].Footer.IconURL, "{headurl}", headurl, -1)
 	}
 	json, _ := json.Marshal(new)
-	fmt.Println(string(json))
 	return json
 }
 
@@ -104,9 +110,24 @@ _  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
 
 func main() {
 	app := StrCmd.App{
-		Version:        "v1.2.25b-CR",
+		Version:        "v1.3.00-CR",
 		AppDescription: "Crumble is a open source minecraft turbo!",
 		Commands: map[string]StrCmd.Command{
+			"webhook": {
+				Subcommand: map[string]StrCmd.SubCmd{
+					"test": {
+						Action: func() {
+							_, _, _, searches := utils.GetDroptimes("test")
+							err, ok := webhook.Webhook(utils.Con.WebhookURL, BuildWebhook("test", searches, utils.GetHeadUrl("test")))
+							if err != nil {
+								fmt.Println(utils.Logo(err.Error()))
+							} else if ok {
+								fmt.Println(utils.Logo("Succesfully sent personal webhook!"))
+							}
+						},
+					},
+				},
+			},
 			"snipe": {
 				Description: "Main sniper command, targets only one ign that is passed through with -u",
 				Action: func() {
