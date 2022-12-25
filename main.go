@@ -11,11 +11,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/6uf/StrCmd"
 	"github.com/6uf/apiGO"
+	"github.com/bwmarrin/discordgo"
 )
 
 var Username = ""
@@ -24,7 +26,7 @@ func TempCalc(interval int) time.Duration {
 	return time.Duration(interval/len(utils.Bearer.Details)) * time.Millisecond
 }
 
-func BuildWebhook(name, searches, headurl string) []byte {
+func BuildWebhook(name, searches, headurl string) ([]byte, webhook.Web) {
 	new := utils.Con.Webhook
 	for i := range new.Embeds {
 		new.Embeds[i].Description = strings.Replace(new.Embeds[i].Description, "{name}", name, -1)
@@ -41,9 +43,77 @@ func BuildWebhook(name, searches, headurl string) []byte {
 		new.Embeds[i].Footer.Text = strings.Replace(new.Embeds[i].Footer.Text, "{searches}", searches, -1)
 		new.Embeds[i].Footer.IconURL = strings.Replace(new.Embeds[i].Footer.IconURL, "{name}", name, -1)
 		new.Embeds[i].Footer.IconURL = strings.Replace(new.Embeds[i].Footer.IconURL, "{headurl}", headurl, -1)
+		for e, field := range new.Embeds[i].Fields {
+			field.Name = strings.Replace(field.Name, "{headurl}", headurl, -1)
+			field.Name = strings.Replace(field.Name, "{searches}", searches, -1)
+			field.Name = strings.Replace(field.Name, "{name}", name, -1)
+			field.Name = strings.Replace(field.Name, "{id}", utils.Con.DiscordID, -1)
+			field.Value = strings.Replace(field.Value, "{headurl}", headurl, -1)
+			field.Value = strings.Replace(field.Value, "{searches}", searches, -1)
+			field.Value = strings.Replace(field.Value, "{name}", name, -1)
+			field.Value = strings.Replace(field.Value, "{id}", utils.Con.DiscordID, -1)
+			new.Embeds[i].Fields[e] = field
+		}
 	}
 	json, _ := json.Marshal(new)
-	return json
+	return json, new
+}
+
+func ReturnEmbed(name, searches, headurl string) (Data discordgo.MessageSend) {
+	_, new := BuildWebhook(name, searches, headurl)
+	for _, com := range new.Embeds {
+		var Footer discordgo.MessageEmbedFooter
+		var Image discordgo.MessageEmbedImage
+		var Thumbnail discordgo.MessageEmbedThumbnail
+		var Author discordgo.MessageEmbedAuthor
+
+		if !reflect.DeepEqual(com.Footer, webhook.Footer{}) {
+			Footer = discordgo.MessageEmbedFooter{
+				Text:    com.Footer.Text,
+				IconURL: com.Footer.IconURL,
+			}
+		}
+		if !reflect.DeepEqual(com.Image, webhook.Image{}) {
+			Image = discordgo.MessageEmbedImage{
+				URL: com.Image.URL,
+			}
+		}
+		if !reflect.DeepEqual(com.Thumbnail, webhook.Thumbnail{}) {
+			Thumbnail = discordgo.MessageEmbedThumbnail{
+				URL: com.Thumbnail.URL,
+			}
+		}
+		if !reflect.DeepEqual(com.Author, webhook.Author{}) {
+			Author = discordgo.MessageEmbedAuthor{
+				URL:     com.Author.URL,
+				Name:    com.Author.Name,
+				IconURL: com.Author.IconURL,
+			}
+		}
+
+		Data.Embeds = append(Data.Embeds, &discordgo.MessageEmbed{
+			URL:         com.URL,
+			Description: com.Description,
+			Color:       com.Color,
+			Footer:      &Footer,
+			Image:       &Image,
+			Thumbnail:   &Thumbnail,
+			Author:      &Author,
+			Fields:      returnjustfields(com),
+		})
+	}
+	return
+}
+
+func returnjustfields(com webhook.Embeds) (Data []*discordgo.MessageEmbedField) {
+	for _, c := range com.Fields {
+		Data = append(Data, &discordgo.MessageEmbedField{
+			Name:   c.Name,
+			Value:  c.Value,
+			Inline: c.Inline,
+		})
+	}
+	return
 }
 
 func init() {
@@ -111,7 +181,8 @@ func main() {
 					"test": {
 						Action: func() {
 							_, _, _, searches := utils.GetDroptimes("test")
-							err, ok := webhook.Webhook(utils.Con.WebhookURL, BuildWebhook("test", searches, utils.GetHeadUrl("test")))
+							json, _ := BuildWebhook("test", searches, utils.GetHeadUrl("test"))
+							err, ok := webhook.Webhook(utils.Con.WebhookURL, json)
 							if err != nil {
 								fmt.Println(utils.Logo(err.Error()))
 							} else if ok {
@@ -124,6 +195,9 @@ func main() {
 			"snipe": {
 				Description: "Main sniper command, targets only one ign that is passed through with -u",
 				Action: func() {
+					if len(utils.Con.Bearers) == 0 && len(utils.Bearer.Details) == 0 {
+						return
+					}
 					cl, name, Changed, c := false, StrCmd.String("-u"), false, make(chan os.Signal, 1)
 					signal.Notify(c, os.Interrupt)
 					start, end, status, searches := utils.GetDroptimes(name)
@@ -310,7 +384,8 @@ Exit:
 							if utils.Con.UseWebhook {
 								go func() {
 									_, _, _, searches := utils.GetDroptimes(name)
-									err, ok := webhook.Webhook(utils.Con.WebhookURL, BuildWebhook(name, searches, utils.GetHeadUrl(name)))
+									json, _ := BuildWebhook(name, searches, utils.GetHeadUrl(name))
+									err, ok := webhook.Webhook(utils.Con.WebhookURL, json)
 									if err != nil {
 										fmt.Println(utils.Logo(err.Error()))
 									} else if ok {
@@ -326,8 +401,7 @@ Exit:
 							Details.Data.Status = "UNKNOWN:" + Req.ResponseDetails.StatusCode
 						}
 					}
-					C := fmt.Sprintf(`[%v] %v <%v> ~ [%v] {"status":"%v"} ms since last req %v`, ReqAmt, name, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, time.Since(LastReq))
-					fmt.Print(utils.Logo(C), "           \r")
+					fmt.Print(utils.Logo(fmt.Sprintf(`[%v] %v <%v> ~ [%v] {"status":"%v"} ms since last req %v`, ReqAmt, name, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, time.Since(LastReq))), "           \r")
 				}
 			}
 			Next = New

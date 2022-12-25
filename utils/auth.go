@@ -17,7 +17,7 @@ func AuthAccs() {
 	grabDetails()
 	if len(Con.Bearers) == 0 {
 		fmt.Println(Logo("No Bearers have been found, please check your details."))
-		os.Exit(0)
+		return
 	} else {
 		checkifValid()
 		for _, Accs := range Con.Bearers {
@@ -45,7 +45,7 @@ func grabDetails() {
 
 	if len(AccountsVer) == 0 {
 		fmt.Println(Logo("Unable to continue, you have no Accounts added."))
-		os.Exit(0)
+		return
 	}
 
 	CheckDupes(AccountsVer)
@@ -68,7 +68,6 @@ func grabDetails() {
 							user = data[2]
 							pass = data[3]
 						}
-						var Remove []string
 						switch info := apiGO.MS_authentication(acc[0], acc[1], &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}); true {
 						case info.Error != "":
 							fmt.Println(Logo(fmt.Sprintf("Account %v came up Invalid: %v", info.Email, info.Error)))
@@ -84,31 +83,12 @@ func grabDetails() {
 								NameChange:   true,
 							})
 						default:
-							Remove = append(Remove, info.Email+":"+info.Password)
 							fmt.Println(Logo(fmt.Sprintf("Account %v Bearer is nil or it cannot name change.. [%v]", acc[0], acc[1])))
-						}
-
-						if len(Remove) > 0 {
-							var Accs []string
-							file, _ := os.Open("accounts.txt")
-							scanner := bufio.NewScanner(file)
-							for scanner.Scan() {
-								Accs = append(Accs, scanner.Text())
-							}
-							file.Close()
-							var New []string
-							for _, acc := range Accs {
-								if !strings.Contains(strings.Join(Remove, "\n"), acc) {
-									New = append(New, acc)
-								}
-							}
-							rewrite("accounts.txt", strings.Join(New, "\n"))
 						}
 
 						wg.Done()
 					}()
 				} else {
-					var Remove []string
 					switch info := apiGO.MS_authentication(acc[0], acc[1], nil); true {
 					case info.Error != "":
 						fmt.Println(Logo(fmt.Sprintf("Account %v came up Invalid: %v", info.Email, info.Error)))
@@ -124,24 +104,7 @@ func grabDetails() {
 							NameChange:   true,
 						})
 					default:
-						Remove = append(Remove, info.Email+":"+info.Password)
 						fmt.Println(Logo(fmt.Sprintf("Account %v Bearer is nil or it cannot name change.. [%v]", acc[0], acc[1])))
-					}
-					if len(Remove) > 0 {
-						var Accs []string
-						file, _ := os.Open("accounts.txt")
-						scanner := bufio.NewScanner(file)
-						for scanner.Scan() {
-							Accs = append(Accs, scanner.Text())
-						}
-						file.Close()
-						var New []string
-						for _, acc := range Accs {
-							if !strings.Contains(strings.Join(Remove, "\n"), acc) {
-								New = append(New, acc)
-							}
-						}
-						rewrite("accounts.txt", strings.Join(New, "\n"))
 					}
 				}
 			}
@@ -177,7 +140,6 @@ func grabDetails() {
 							user = data[2]
 							pass = data[3]
 						}
-						var Remove []string
 						switch info := apiGO.MS_authentication(acc[0], acc[1], &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}); true {
 						case info.Error != "":
 							fmt.Println(Logo(fmt.Sprintf("Account %v came up Invalid: %v", info.Email, info.Error)))
@@ -193,29 +155,11 @@ func grabDetails() {
 								NameChange:   true,
 							})
 						default:
-							Remove = append(Remove, info.Email+":"+info.Password)
 							fmt.Println(Logo(fmt.Sprintf("Account %v Bearer is nil or it cannot name change.. [%v]", acc[0], acc[1])))
-						}
-						if len(Remove) > 0 {
-							var Accs []string
-							file, _ := os.Open("accounts.txt")
-							scanner := bufio.NewScanner(file)
-							for scanner.Scan() {
-								Accs = append(Accs, scanner.Text())
-							}
-							file.Close()
-							var New []string
-							for _, acc := range Accs {
-								if !strings.Contains(strings.Join(Remove, "\n"), acc) {
-									New = append(New, acc)
-								}
-							}
-							rewrite("accounts.txt", strings.Join(New, "\n"))
 						}
 						wg.Done()
 					}()
 				} else {
-					var Remove []string
 					switch info := apiGO.MS_authentication(acc[0], acc[1], nil); true {
 					case info.Error != "":
 						fmt.Println(Logo(fmt.Sprintf("Account %v came up Invalid: %v", info.Email, info.Error)))
@@ -231,24 +175,7 @@ func grabDetails() {
 							NameChange:   true,
 						})
 					default:
-						Remove = append(Remove, info.Email+":"+info.Password)
 						fmt.Println(Logo(fmt.Sprintf("Account %v Bearer is nil or it cannot name change.. [%v]", acc[0], acc[1])))
-					}
-					if len(Remove) > 0 {
-						var Accs []string
-						file, _ := os.Open("accounts.txt")
-						scanner := bufio.NewScanner(file)
-						for scanner.Scan() {
-							Accs = append(Accs, scanner.Text())
-						}
-						file.Close()
-						var New []string
-						for _, acc := range Accs {
-							if !strings.Contains(strings.Join(Remove, "\n"), acc) {
-								New = append(New, acc)
-							}
-						}
-						rewrite("accounts.txt", strings.Join(New, "\n"))
 					}
 				}
 			}
@@ -302,7 +229,6 @@ func checkifValid() {
 							user = data[2]
 							pass = data[3]
 						}
-						var Remove []string
 						switch info := apiGO.MS_authentication(acc[0], acc[1], &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}); true {
 						case info.Error != "":
 							fmt.Println(Logo(fmt.Sprintf("Account %v came up Invalid: %v", info.Email, info.Error)))
@@ -318,29 +244,11 @@ func checkifValid() {
 								NameChange:   true,
 							})
 						default:
-							Remove = append(Remove, info.Email+":"+info.Password)
 							fmt.Println(Logo(fmt.Sprintf("Account %v Bearer is nil or it cannot name change.. [%v]", acc[0], acc[1])))
-						}
-						if len(Remove) > 0 {
-							var Accs []string
-							file, _ := os.Open("accounts.txt")
-							scanner := bufio.NewScanner(file)
-							for scanner.Scan() {
-								Accs = append(Accs, scanner.Text())
-							}
-							file.Close()
-							var New []string
-							for _, acc := range Accs {
-								if !strings.Contains(strings.Join(Remove, "\n"), acc) {
-									New = append(New, acc)
-								}
-							}
-							rewrite("accounts.txt", strings.Join(New, "\n"))
 						}
 						wg.Done()
 					}()
 				} else {
-					var Remove []string
 					switch info := apiGO.MS_authentication(acc[0], acc[1], nil); true {
 					case info.Error != "":
 						fmt.Println(Logo(fmt.Sprintf("Account %v came up Invalid: %v", info.Email, info.Error)))
@@ -356,24 +264,7 @@ func checkifValid() {
 							NameChange:   true,
 						})
 					default:
-						Remove = append(Remove, info.Email+":"+info.Password)
 						fmt.Println(Logo(fmt.Sprintf("Account %v Bearer is nil or it cannot name change.. [%v]", acc[0], acc[1])))
-					}
-					if len(Remove) > 0 {
-						var Accs []string
-						file, _ := os.Open("accounts.txt")
-						scanner := bufio.NewScanner(file)
-						for scanner.Scan() {
-							Accs = append(Accs, scanner.Text())
-						}
-						file.Close()
-						var New []string
-						for _, acc := range Accs {
-							if !strings.Contains(strings.Join(Remove, "\n"), acc) {
-								New = append(New, acc)
-							}
-						}
-						rewrite("accounts.txt", strings.Join(New, "\n"))
 					}
 				}
 			}
@@ -383,15 +274,6 @@ func checkifValid() {
 
 	Con.SaveConfig()
 	Con.LoadState()
-}
-
-func rewrite(path, accounts string) {
-	os.Create(path)
-
-	file, _ := os.OpenFile(path, os.O_RDWR, 0644)
-	defer file.Close()
-
-	file.WriteAt([]byte(accounts), 0)
 }
 
 // _diamondburned_#4507 thanks to them for the epic example below.

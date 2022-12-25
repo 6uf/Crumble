@@ -12,9 +12,16 @@ type Embeds struct {
 	URL         string    `json:"url"`
 	Image       Image     `json:"image"`
 	Thumbnail   Thumbnail `json:"thumbnail"`
+	Fields      []Fields  `json:"fields"`
 	Color       int       `json:"color"`
 	Author      Author    `json:"author"`
 	Footer      Footer    `json:"footer"`
+}
+
+type Fields struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Inline bool   `json:"inline"`
 }
 
 type Footer struct {
