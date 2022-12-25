@@ -401,7 +401,7 @@ Exit:
 							Details.Data.Status = "UNKNOWN:" + Req.ResponseDetails.StatusCode
 						}
 					}
-					fmt.Print(utils.Logo(fmt.Sprintf(`[%v] %v <%v> ~ [%v] {"status":"%v"} ms since last req %v`, ReqAmt, name, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, time.Since(LastReq))), "           \r")
+					fmt.Print(utils.Logo(fmt.Sprintf(`[%v] %v <%v> ~ [%v] %v ms since last req %v`, ReqAmt, name, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, time.Since(LastReq))), "           \r")
 				}
 			}
 			Next = New
