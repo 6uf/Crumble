@@ -1,4 +1,4 @@
-[![](https://dcbadge.vercel.app/api/server/ee5Z4ecuwQ)](https://discord.gg/ee5Z4ecuwQ)
+
 # Crumble
 A sniper that uses proxies and mass account support, it sends periodic requests.
 
