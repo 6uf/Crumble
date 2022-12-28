@@ -306,7 +306,7 @@ End        ~ %v
 					for {
 						if cl {
 							fmt.Println()
-							fmt.Println(utils.Logo(name + " Has dropped."))
+							fmt.Println(utils.Logo(name + " has dropped or ctrl-c was pressed."))
 							signal.Stop(c)
 							break Exit
 						}
