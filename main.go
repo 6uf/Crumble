@@ -203,8 +203,16 @@ func main() {
 					start, end, status, searches := utils.GetDroptimes(name)
 					drop := time.Unix(start, 0)
 					for time.Now().Before(drop) {
-						fmt.Print(utils.Logo((fmt.Sprintf("[%v] %v                 \r", name, time.Until(drop).Round(time.Second)))))
-						time.Sleep(time.Second * 1)
+						select {
+						case <-c:
+							signal.Stop(c)
+							Changed = true
+							cl = true
+							return
+						default:
+							fmt.Print(utils.Logo((fmt.Sprintf("[%v] %v                 \r", name, time.Until(drop).Round(time.Second)))))
+							time.Sleep(time.Second * 1)
+						}
 					}
 					go func() {
 					Exit:
@@ -240,43 +248,63 @@ Start      ~ %v
 End        ~ %v
 
 `, name, len(utils.Proxy.Proxys), len(utils.Bearer.Details), searches, status, time.Unix(start, 0), time.Unix(end, 0))))
-					var Accs_value []struct {
-						Proxy   string
-						Account apiGO.Info
+					type Proxys_Accs struct {
+						Proxy string
+						Accs  []apiGO.Info
 					}
+					var Accs map[string][]Proxys_Accs = make(map[string][]Proxys_Accs)
+					Accs["Giftcard"] = []Proxys_Accs{{Proxy: utils.Proxy.CompRand()}}
+					Accs["Microsoft"] = []Proxys_Accs{{Proxy: utils.Proxy.CompRand()}}
+					var gc, use_gc int
 					for i, proxy := range utils.Proxy.Proxys {
 						if i < len(utils.Bearer.Details) {
-							Accs_value = append(Accs_value, struct {
-								Proxy   string
-								Account apiGO.Info
-							}{Proxy: proxy, Account: utils.Bearer.Details[i]})
-						}
-					}
-					for _, Config := range Accs_value {
-						Spread, SleepLength := time.Millisecond, time.Millisecond
-						if utils.Con.UseCustomSpread {
-							Spread = time.Duration(utils.Con.Spread) * time.Millisecond
-							if Config.Account.AccountType == "Giftcard" {
-								SleepLength = time.Millisecond * 15000
-							} else {
-								SleepLength = time.Millisecond * 10000
-							}
-						} else {
-							if Config.Account.AccountType == "Giftcard" {
-								Spread = TempCalc(15000)
-								SleepLength = time.Millisecond * 15000
-							} else {
-								Spread = TempCalc(10000)
-								SleepLength = time.Millisecond * 10000
+							switch utils.Bearer.Details[i].AccountType {
+							case "Microsoft":
+								Accs["Microsoft"] = append(Accs["Microsoft"], Proxys_Accs{Proxy: proxy, Accs: []apiGO.Info{utils.Bearer.Details[i]}})
+							case "Giftcard":
+								if gc <= 3 {
+									gc++
+									Accs["Giftcard"][use_gc].Accs = append(Accs["Giftcard"][use_gc].Accs, utils.Bearer.Details[i])
+								} else {
+									use_gc++
+									gc = 0
+									Accs["Giftcard"] = append(Accs["Giftcard"], Proxys_Accs{Proxy: proxy, Accs: []apiGO.Info{utils.Bearer.Details[i]}})
+								}
 							}
 						}
-						go Snipe(Config.Account, SleepLength, name, &Changed, Config.Proxy)
-						time.Sleep(Spread)
 					}
+
+					go func() {
+						for _, Acc := range Accs["Giftcard"] {
+							Spread := time.Millisecond
+							if utils.Con.UseCustomSpread {
+								Spread = time.Duration(utils.Con.Spread) * time.Millisecond
+							} else {
+								Spread = TempCalc(15050)
+							}
+							for _, data := range Acc.Accs {
+								go Snipe(data, 15050*time.Millisecond, name, &Changed, Acc.Proxy)
+								time.Sleep(Spread)
+							}
+						}
+					}()
+					go func() {
+						for _, Acc := range Accs["Microsoft"] {
+							Spread := time.Millisecond
+							if utils.Con.UseCustomSpread {
+								Spread = time.Duration(utils.Con.Spread) * time.Millisecond
+							} else {
+								Spread = TempCalc(10050)
+							}
+							for _, data := range Acc.Accs {
+								go Snipe(data, 10050*time.Millisecond, name, &Changed, Acc.Proxy)
+								time.Sleep(Spread)
+							}
+						}
+					}()
 				Exit:
 					for {
 						if cl {
-							ReqAmt = 0
 							fmt.Println()
 							fmt.Println(utils.Logo(name + " Has dropped."))
 							signal.Stop(c)
@@ -299,7 +327,7 @@ func ReturnPayload(acc, bearer, name string) string {
 		var JSON string = fmt.Sprintf(`{"profileName":"%v"}`, name)
 		return fmt.Sprintf("POST /minecraft/profile HTTP/1.1\r\nHost: api.minecraftservices.com\r\nConnection: open\r\nContent-Length:%v\r\nContent-Type: application/json\r\nAccept: application/json\r\nAuthorization: Bearer %v\r\n\r\n%v\r\n", len(JSON), bearer, JSON)
 	} else {
-		return "PUT /minecraft/profile/name/" + name + " HTTP/1.1\r\nHost: api.minecraftservices.com\r\nConnection: open\r\nUser-Agent: MCSN/1.0\r\nContent-Length:0\r\nAuthorization: bearer " + bearer + "\r\n"
+		return "PUT /minecraft/profile/name/" + name + " HTTP/1.1\r\nHost: api.minecraftservices.com\r\nConnection: open\r\nUser-Agent: MCSN/1.0\r\nContent-Length:0\r\nAuthorization: Bearer " + bearer + "\r\n"
 	}
 }
 
@@ -321,9 +349,6 @@ func GetDiscordUsername(ID string) string {
 	}
 }
 
-var ReqAmt int
-var LastReq time.Time
-
 func Snipe(Config apiGO.Info, Spread time.Duration, name string, NameRecvChannel *bool, proxy string) {
 	Next := time.Now()
 Exit:
@@ -333,7 +358,6 @@ Exit:
 			break Exit
 		default:
 			New := Next.Add(Spread)
-			LastReq = time.Now()
 			for _, Acc := range utils.Bearer.Details {
 				if strings.EqualFold(Acc.Email, Config.Email) {
 					Config = Acc
@@ -346,7 +370,6 @@ Exit:
 				fmt.Fprint(proxy.Proxy, Payload)
 				time.Sleep(time.Until(Next))
 				if Payload != "" && !*NameRecvChannel {
-					ReqAmt++
 					Req := apiGO.Details{ResponseDetails: apiGO.SocketSending(proxy.Proxy, "\r\n"), Bearer: Config.Bearer, Email: Config.Email, Type: Config.AccountType}
 					var Details utils.Status
 					switch true {
@@ -374,7 +397,6 @@ Exit:
 							Details.Data.Status = "UNAUTHORIZED"
 						case "200":
 							Details.Data.Status = "CLAIMED"
-							ReqAmt = 0
 							if utils.Con.SkinChange.Link != "" {
 								go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Req.Bearer)
 							}
@@ -398,10 +420,14 @@ Exit:
 						case "":
 							Details.Data.Status = "DEAD_PROXY"
 						default:
-							Details.Data.Status = "UNKNOWN:" + Req.ResponseDetails.StatusCode
+							if strings.Contains(Req.ResponseDetails.Body, "error") && strings.Contains(Req.ResponseDetails.Body, "FORBIDDEN") {
+								Details.Data.Status = "CANNOT_NAME_CHANGE:" + Req.ResponseDetails.StatusCode + ":" + Req.Email
+							} else {
+								Details.Data.Status = "UNKNOWN:" + Req.ResponseDetails.StatusCode
+							}
 						}
 					}
-					fmt.Print(utils.Logo(fmt.Sprintf(`[%v] %v <%v> ~ [%v] %v ms since last req %v`, ReqAmt, name, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, time.Since(LastReq))), "           \r")
+					fmt.Println(utils.Logo(fmt.Sprintf(`%v <%v> ~ [%v] %v <%v>`, name, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, Req.Type)))
 				}
 			}
 			Next = New

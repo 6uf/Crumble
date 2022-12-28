@@ -48,12 +48,51 @@ func grabDetails() {
 		return
 	}
 
+	var wgs sync.WaitGroup
+
+	for _, acc_1 := range AccountsVer {
+		if acc := strings.Split(acc_1, ":"); !(len(acc) > 1) {
+			wgs.Add(1)
+			go func(acc_1 string) {
+				if len(Proxy.Proxys) > 0 && Con.UseProxyDuringAuth {
+					ip, port, user, pass := "", "", "", ""
+					switch data := strings.Split(Proxy.CompRand(), ":"); len(data) {
+					case 2:
+						ip = data[0]
+						port = data[1]
+					case 4:
+						ip = data[0]
+						port = data[1]
+						user = data[2]
+						pass = data[3]
+					}
+					Bearer.Details = append(Bearer.Details, apiGO.Info{
+						Bearer:      acc_1,
+						Email:       acc_1[0:12],
+						AccountType: apiGO.IsGC(acc_1, &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}),
+						Expires:     int(time.Now().Add(86400000 * time.Second).Unix()),
+					})
+				} else {
+					Bearer.Details = append(Bearer.Details, apiGO.Info{
+						Bearer:      acc_1,
+						Email:       acc_1[0:12],
+						AccountType: apiGO.IsGC(acc_1, nil),
+						Expires:     int(time.Now().Add(86400000 * time.Second).Unix()),
+					})
+				}
+				wgs.Done()
+			}(acc_1)
+		}
+	}
+
+	wgs.Wait()
+
 	CheckDupes(AccountsVer)
 
 	if Con.Bearers == nil {
 		var wg sync.WaitGroup
-		for _, acc := range AccountsVer {
-			if acc := strings.Split(acc, ":"); len(acc) > 1 {
+		for _, acc_1 := range AccountsVer {
+			if acc := strings.Split(acc_1, ":"); len(acc) > 1 {
 				if len(Proxy.Proxys) > 0 && Con.UseProxyDuringAuth {
 					wg.Add(1)
 					go func() {
@@ -200,16 +239,23 @@ func grabDetails() {
 
 func checkifValid() {
 	var reAuth []string
+	var wgs sync.WaitGroup
 	for _, Accs := range Con.Bearers {
-		f, _ := http.NewRequest("GET", "https://api.minecraftservices.com/minecraft/profile/name/boom/available", nil)
-		f.Header.Set("Authorization", "Bearer "+Accs.Bearer)
-		j, _ := http.DefaultClient.Do(f)
+		wgs.Add(1)
+		go func(Accs apiGO.Bearers) {
+			f, _ := http.NewRequest("GET", "https://api.minecraftservices.com/minecraft/profile/name/boom/available", nil)
+			f.Header.Set("Authorization", "Bearer "+Accs.Bearer)
+			j, _ := http.DefaultClient.Do(f)
 
-		if j.StatusCode == 401 {
-			fmt.Println(Logo(fmt.Sprintf("Reauthing %v", Accs.Email)))
-			reAuth = append(reAuth, Accs.Email+":"+Accs.Password)
-		}
+			if j.StatusCode == 401 {
+				fmt.Println(Logo(fmt.Sprintf("Reauthing %v", Accs.Email)))
+				reAuth = append(reAuth, Accs.Email+":"+Accs.Password)
+			}
+			wgs.Done()
+		}(Accs)
 	}
+	
+	wgs.Wait()
 
 	if len(reAuth) != 0 {
 		var wg sync.WaitGroup
