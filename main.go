@@ -214,6 +214,8 @@ func main() {
 							time.Sleep(time.Second * 1)
 						}
 					}
+
+					Force := StrCmd.Bool("--force")
 					go func() {
 					Exit:
 						for {
@@ -224,22 +226,24 @@ func main() {
 								cl = true
 								break Exit
 							default:
-								if utils.IsAvailable(name) {
-									Changed = true
-									cl = true
-									break Exit
-								}
-								if start != 0 && end != 0 && time.Now().After(time.Unix(end, 0)) {
-									Changed = true
-									cl = true
-									break Exit
+								if !Force {
+									if utils.IsAvailable(name) {
+										Changed = true
+										cl = true
+										break Exit
+									}
+									if start != 0 && end != 0 && time.Now().After(time.Unix(end, 0)) {
+										Changed = true
+										cl = true
+										break Exit
+									}
 								}
 								time.Sleep(10 * time.Second)
 							}
 						}
 					}()
 					fmt.Print(utils.Logo(fmt.Sprintf(`
-Name(s)    ~ %v
+Name       ~ %v
 Proxies    ~ %v
 Account(s) ~ %v
 Searches   ~ %v
@@ -315,6 +319,7 @@ End        ~ %v
 				},
 				Args: []string{
 					"-u",
+					"--force",
 				},
 			},
 		},
