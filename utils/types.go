@@ -33,6 +33,7 @@ type Status struct {
 
 type Config struct {
 	Gradient           []Values        `json:"gradient"`
+	UseMethod          bool            `json:"use_method_rlbypass"`
 	SkinChange         Skin            `json:"skin_config"`
 	UseProxyDuringAuth bool            `json:"useproxysduringauth"`
 	DiscordID          string          `json:"id"`

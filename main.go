@@ -9,8 +9,8 @@ import (
 	"main/utils"
 	"main/webhook"
 	"net/http"
+	"net/url"
 	"os"
-	"os/signal"
 	"reflect"
 	"strings"
 	"time"
@@ -20,9 +20,10 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-var Username = ""
-
 func TempCalc(interval int) time.Duration {
+	if utils.Con.UseMethod {
+		return time.Duration(interval/(len(utils.Bearer.Details)*15)) * time.Millisecond
+	}
 	return time.Duration(interval/len(utils.Bearer.Details)) * time.Millisecond
 }
 
@@ -142,23 +143,9 @@ _  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
 		fmt.Scan(&ProxyAuth)
 		utils.Con.FirstUse = false
 		utils.Con.UseProxyDuringAuth = strings.Contains(strings.ToLower(ProxyAuth), "y")
-		fmt.Print(utils.Logo("Send to webhook once sniped? : [YES/NO] > "))
-		var WebhookSend string
-		fmt.Scan(&WebhookSend)
-		utils.Con.SendWebhook = strings.Contains(strings.ToLower(WebhookSend), "y")
 		utils.Con.SaveConfig()
 		utils.Con.LoadState()
 	}
-	if utils.Con.FirstUse {
-		fmt.Print(utils.Logo("\nSent to webhook when a snipe occurs? : [YES/NO] > "))
-		var WebhookCheck string
-		fmt.Scan(&WebhookCheck)
-		utils.Con.FirstUse = false
-		utils.Con.SendWebhook = strings.Contains(strings.ToLower(WebhookCheck), "y")
-		utils.Con.SaveConfig()
-		utils.Con.LoadState()
-	}
-	Username = GetDiscordUsername(utils.Con.DiscordID)
 	if file_name := "accounts.txt"; utils.CheckForValidFile(file_name) {
 		os.Create(file_name)
 	}
@@ -176,82 +163,58 @@ func main() {
 		Version:        "v1.3.00-CR",
 		AppDescription: "Crumble is a open source minecraft turbo!",
 		Commands: map[string]StrCmd.Command{
-			"webhook": {
-				Subcommand: map[string]StrCmd.SubCmd{
-					"test": {
-						Action: func() {
-							_, _, _, searches := utils.GetDroptimes("test")
-							json, _ := BuildWebhook("test", searches, utils.GetHeadUrl("test"))
-							err, ok := webhook.Webhook(utils.Con.WebhookURL, json)
-							if err != nil {
-								fmt.Println(utils.Logo(err.Error()))
-							} else if ok {
-								fmt.Println(utils.Logo("Succesfully sent personal webhook!"))
-							}
-						},
-					},
-				},
-			},
 			"snipe": {
 				Description: "Main sniper command, targets only one ign that is passed through with -u",
 				Action: func() {
 					if len(utils.Con.Bearers) == 0 && len(utils.Bearer.Details) == 0 {
 						return
 					}
-					cl, name, Changed, c := false, StrCmd.String("-u"), false, make(chan os.Signal, 1)
-					signal.Notify(c, os.Interrupt)
-					start, end, status, searches := utils.GetDroptimes(name)
+					cl, name, Changed := false, StrCmd.String("-u"), false
+
+					var Use string
+					fmt.Print(utils.Logo("Use your own unix timestamps: "))
+					fmt.Scan(&Use)
+					var start, end int64
+					if strings.Contains(strings.ToLower(Use), "y") {
+						fmt.Print(utils.Logo("Start: "))
+						fmt.Scan(&start)
+						fmt.Print(utils.Logo("End: "))
+						fmt.Scan(&end)
+					}
+
 					drop := time.Unix(start, 0)
 					for time.Now().Before(drop) {
-						select {
-						case <-c:
-							signal.Stop(c)
-							Changed = true
-							cl = true
-							return
-						default:
-							fmt.Print(utils.Logo((fmt.Sprintf("[%v] %v                 \r", name, time.Until(drop).Round(time.Second)))))
-							time.Sleep(time.Second * 1)
-						}
+						fmt.Print(utils.Logo((fmt.Sprintf("[%v] %v                 \r", name, time.Until(drop).Round(time.Second)))))
+						time.Sleep(time.Second * 1)
 					}
 
 					Force := StrCmd.Bool("--force")
 					go func() {
 					Exit:
 						for {
-							select {
-							case <-c:
-								signal.Stop(c)
-								Changed = true
-								cl = true
-								break Exit
-							default:
-								if !Force {
-									if utils.IsAvailable(name) {
-										Changed = true
-										cl = true
-										break Exit
-									}
-									if start != 0 && end != 0 && time.Now().After(time.Unix(end, 0)) {
-										Changed = true
-										cl = true
-										break Exit
-									}
+							if !Force {
+								if utils.IsAvailable(name) {
+									Changed = true
+									cl = true
+									break Exit
 								}
-								time.Sleep(10 * time.Second)
+								if start != 0 && end != 0 && time.Now().After(time.Unix(end, 0)) {
+									Changed = true
+									cl = true
+									break Exit
+								}
 							}
+							time.Sleep(10 * time.Second)
 						}
 					}()
 					fmt.Print(utils.Logo(fmt.Sprintf(`
 Name       ~ %v
 Proxies    ~ %v
 Account(s) ~ %v
-Searches   ~ %v
-Status     ~ %v
 Start      ~ %v
 End        ~ %v
 
-`, name, len(utils.Proxy.Proxys), len(utils.Bearer.Details), searches, status, time.Unix(start, 0), time.Unix(end, 0))))
+`, name, len(utils.Proxy.Proxys), len(utils.Bearer.Details), time.Unix(start, 0), time.Unix(end, 0))))
 					type Proxys_Accs struct {
 						Proxy string
 						Accs  []apiGO.Info
@@ -266,7 +229,7 @@ End        ~ %v
 							case "Microsoft":
 								Accs["Microsoft"] = append(Accs["Microsoft"], Proxys_Accs{Proxy: proxy, Accs: []apiGO.Info{utils.Bearer.Details[i]}})
 							case "Giftcard":
-								if gc <= 3 {
+								if gc <= 5 {
 									gc++
 									Accs["Giftcard"][use_gc].Accs = append(Accs["Giftcard"][use_gc].Accs, utils.Bearer.Details[i])
 								} else {
@@ -277,32 +240,155 @@ End        ~ %v
 							}
 						}
 					}
+					go func() {
+						for _, Acc := range append(Accs["Giftcard"], Accs["Microsoft"]...) {
+							for _, data := range Acc.Accs {
+								go func(data apiGO.Info, l int) {
+									sp := strings.Split(Acc.Proxy, ":")
+									var Proxy func(*http.Request) (*url.URL, error)
+									if len(sp) > 2 {
+										ip, port, user, pass := sp[0], sp[1], sp[2], sp[3]
+										Proxy = http.ProxyURL(&url.URL{Scheme: "http", User: url.UserPassword(user, pass), Host: ip + ":" + port})
+									} else {
+										ip, port := sp[0], sp[1]
+										Proxy = http.ProxyURL(&url.URL{Scheme: "http", Host: ip + ":" + port})
+									}
+									Client := http.Client{
+										Transport: &http.Transport{
+											Proxy: Proxy,
+										},
+									}
+									Next := time.Now()
+								Exit:
+									for {
+										switch true {
+										case Changed:
+											break Exit
+										default:
+											var New time.Time
+											if data.AccountType == "Giftcard" {
+												if utils.Con.UseMethod {
+													New = Next.Add(5 * time.Second)
+												} else {
+													New = Next.Add(15 * time.Second)
+												}
+											} else {
+												if utils.Con.UseMethod {
+													New = Next.Add(3 * time.Second)
+												} else {
+													New = Next.Add(10 * time.Second)
+												}
+											}
+											for _, Acc := range utils.Bearer.Details {
+												if strings.EqualFold(Acc.Email, data.Email) {
+													data = Acc
+													break
+												}
+											}
+											time.Sleep(New.Sub(time.Unix(New.Unix()-5, 0)))
+											var req *http.Request
+											switch data.AccountType {
+											case "Microsoft":
+												req, _ = http.NewRequest("PUT", "https://api.minecraftservices.com/minecraft/profile/name/"+name, nil)
+											case "Giftcard":
+												var JSON string = fmt.Sprintf(`{"profileName":"%v"}`, name)
+												req, _ = http.NewRequest("POST", "https://api.minecraftservices.com/minecraft/profile//", bytes.NewBuffer([]byte(JSON)))
+											}
+											req.Header.Add("Authorization", "Bearer "+data.Bearer)
+											time.Sleep(time.Until(Next))
+											reqamt := 1
+											if utils.Con.UseMethod && data.AccountType != "Microsoft" {
+												reqamt = l
+											}
+											for i := 0; i < reqamt; i++ {
+												go func() {
+													if resp, err := Client.Do(req); err == nil {
+														body, _ := io.ReadAll(resp.Body)
+														var Details utils.Status
 
-					go func() {
-						for _, Acc := range Accs["Giftcard"] {
-							Spread := time.Millisecond
-							if utils.Con.UseCustomSpread {
-								Spread = time.Duration(utils.Con.Spread) * time.Millisecond
-							} else {
-								Spread = TempCalc(15050)
-							}
-							for _, data := range Acc.Accs {
-								go Snipe(data, 15050*time.Millisecond, name, &Changed, Acc.Proxy)
-								time.Sleep(Spread)
-							}
-						}
-					}()
-					go func() {
-						for _, Acc := range Accs["Microsoft"] {
-							Spread := time.Millisecond
-							if utils.Con.UseCustomSpread {
-								Spread = time.Duration(utils.Con.Spread) * time.Millisecond
-							} else {
-								Spread = TempCalc(10050)
-							}
-							for _, data := range Acc.Accs {
-								go Snipe(data, 10050*time.Millisecond, name, &Changed, Acc.Proxy)
-								time.Sleep(Spread)
+														switch true {
+														case strings.Contains(string(body), "ALREADY_REGISTERED"):
+															Details.Data.Status = "ALREADY_REGISTERED"
+														case strings.Contains(string(body), "NOT_ENTITLED"):
+															Details.Data.Status = "NOT_ENTITLED"
+														case strings.Contains(string(body), "DUPLICATE"):
+															Details.Data.Status = "DUPLICATE"
+														case strings.Contains(string(body), "NOT_ALLOWED"):
+															Details.Data.Status = "NOT_ALLOWED"
+															fmt.Println(utils.Logo(name + " is currently blocked!"))
+															return
+														default:
+															switch resp.StatusCode {
+															case 429:
+																Details.Data.Status = "RATE_LIMITED"
+																/*
+																	sp := strings.Split(utils.Proxy.CompRand(), ":")
+																	var Proxy func(*http.Request) (*url.URL, error)
+																	if len(sp) > 2 {
+																		ip, port, user, pass := sp[0], sp[1], sp[2], sp[3]
+																		Proxy = http.ProxyURL(&url.URL{Scheme: "http", User: url.UserPassword(user, pass), Host: ip + ":" + port})
+																	} else {
+																		ip, port := sp[0], sp[1]
+																		Proxy = http.ProxyURL(&url.URL{Scheme: "http", Host: ip + ":" + port})
+																	}
+																	Client.Transport = &http.Transport{Proxy: Proxy}
+																*/
+															case 401:
+																Details.Data.Status = "UNAUTHORIZED"
+															case 404:
+																for i, Acc := range utils.Con.Bearers {
+																	if strings.EqualFold(Acc.Email, data.Email) {
+																		utils.Con.Bearers[i].Type = "Giftcard"
+																		data.AccountType = "Giftcard"
+																		utils.Con.SaveConfig()
+																		utils.Con.LoadState()
+																		break
+																	}
+																}
+															case 200:
+																Details.Data.Status = "CLAIMED"
+																if utils.Con.SkinChange.Link != "" {
+																	go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), data.Bearer)
+																}
+																if utils.Con.UseWebhook {
+																	go func() {
+																		json, _ := BuildWebhook(name, "0", "")
+																		err, ok := webhook.Webhook(utils.Con.WebhookURL, json)
+																		if err != nil {
+																			fmt.Println(utils.Logo(err.Error()))
+																		} else if ok {
+																			fmt.Println(utils.Logo("Succesfully sent personal webhook!"))
+																		}
+																	}()
+																}
+																fmt.Println(utils.Logo(fmt.Sprintf("%v claimed %v @ %v\n", data.Email, name, time.Now().Format("05.0000"))))
+																Changed = true
+															default:
+																if strings.Contains(string(body), "error") && strings.Contains(string(body), "FORBIDDEN") {
+																	Details.Data.Status = "CANNOT_NAME_CHANGE:" + resp.Status + ":" + data.Email
+																} else {
+																	Details.Data.Status = "UNKNOWN:" + resp.Status
+																}
+															}
+														}
+														fmt.Println(utils.Logo(fmt.Sprintf(`%v <%v> ~ [%v] %v <%v:%v>`, name, time.Now().Format("15:04:05.0000"), resp.StatusCode, Details.Data.Status, data.AccountType, data.Email)))
+													}
+												}()
+												time.Sleep(5 * time.Millisecond)
+											}
+											Next = New
+										}
+									}
+								}(data, 15/len(Acc.Accs))
+								if utils.Con.UseCustomSpread {
+									time.Sleep(time.Duration(utils.Con.Spread) * time.Millisecond)
+								} else {
+									if data.AccountType == "Giftcard" {
+										time.Sleep(TempCalc(15000))
+									} else {
+										time.Sleep(TempCalc(10000))
+									}
+								}
 							}
 						}
 					}()
@@ -311,7 +397,6 @@ End        ~ %v
 						if cl {
 							fmt.Println()
 							fmt.Println(utils.Logo(name + " has dropped or ctrl-c was pressed."))
-							signal.Stop(c)
 							break Exit
 						}
 						time.Sleep(1 * time.Second)
@@ -324,120 +409,7 @@ End        ~ %v
 			},
 		},
 	}
-	app.Run(utils.Logo(fmt.Sprintf("@%v/root: ", Username)))
-}
-
-func ReturnPayload(acc, bearer, name string) string {
-	if acc == "Giftcard" {
-		var JSON string = fmt.Sprintf(`{"profileName":"%v"}`, name)
-		return fmt.Sprintf("POST /minecraft/profile HTTP/1.1\r\nHost: api.minecraftservices.com\r\nConnection: open\r\nContent-Length:%v\r\nContent-Type: application/json\r\nAccept: application/json\r\nAuthorization: Bearer %v\r\n\r\n%v\r\n", len(JSON), bearer, JSON)
-	} else {
-		return "PUT /minecraft/profile/name/" + name + " HTTP/1.1\r\nHost: api.minecraftservices.com\r\nConnection: open\r\nUser-Agent: MCSN/1.0\r\nContent-Length:0\r\nAuthorization: Bearer " + bearer + "\r\n"
-	}
-}
-
-func GetDiscordUsername(ID string) string {
-	resp, err := http.Get("https://buxflip.com/data/discord/" + ID)
-	if err != nil {
-		return "Unknown"
-	} else {
-		if resp.StatusCode == 429 {
-			return "Unknown"
-		}
-		var Body struct {
-			Data struct {
-				Name string `json:"username"`
-			} `json:"data"`
-		}
-		json.Unmarshal([]byte(apiGO.ReturnJustString(io.ReadAll(resp.Body))), &Body)
-		return Body.Data.Name
-	}
-}
-
-func Snipe(Config apiGO.Info, Spread time.Duration, name string, NameRecvChannel *bool, proxy string) {
-	Next := time.Now()
-Exit:
-	for {
-		switch true {
-		case *NameRecvChannel:
-			break Exit
-		default:
-			New := Next.Add(Spread)
-			for _, Acc := range utils.Bearer.Details {
-				if strings.EqualFold(Acc.Email, Config.Email) {
-					Config = Acc
-					break
-				}
-			}
-			time.Sleep(New.Sub(time.Unix(New.Unix()-5, 0)))
-			if proxy := utils.Connect(proxy); proxy.Alive {
-				var Payload string = ReturnPayload(Config.AccountType, Config.Bearer, name)
-				fmt.Fprint(proxy.Proxy, Payload)
-				time.Sleep(time.Until(Next))
-				if Payload != "" && !*NameRecvChannel {
-					Req := apiGO.Details{ResponseDetails: apiGO.SocketSending(proxy.Proxy, "\r\n"), Bearer: Config.Bearer, Email: Config.Email, Type: Config.AccountType}
-					var Details utils.Status
-					switch true {
-					case strings.Contains(Req.ResponseDetails.Body, "ALREADY_REGISTERED"):
-						Details.Data.Status = "ALREADY_REGISTERED"
-						UpdateConfig(Config.Email)
-						fmt.Println(utils.Logo(fmt.Sprintf("[401] %v cannot name change anymore!", Config.Email)))
-						return
-					case strings.Contains(Req.ResponseDetails.Body, "NOT_ENTITLED"):
-						Details.Data.Status = "NOT_ENTITLED"
-						UpdateConfig(Config.Email)
-						fmt.Println(utils.Logo(fmt.Sprintf("[401] Account %v has become invalid.. (no longer is a valid Gamepass account)", Config.Email)))
-						return
-					case strings.Contains(Req.ResponseDetails.Body, "DUPLICATE"):
-						Details.Data.Status = "DUPLICATE"
-					case strings.Contains(Req.ResponseDetails.Body, "NOT_ALLOWED"):
-						Details.Data.Status = "NOT_ALLOWED"
-						fmt.Println(utils.Logo(name + " is currently blocked!"))
-						return
-					default:
-						switch Req.ResponseDetails.StatusCode {
-						case "429":
-							Details.Data.Status = "RATE_LIMITED"
-						case "401":
-							Details.Data.Status = "UNAUTHORIZED"
-						case "200":
-							Details.Data.Status = "CLAIMED"
-							if utils.Con.SkinChange.Link != "" {
-								go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Req.Bearer)
-							}
-							if utils.Con.SendWebhook {
-								go utils.SendWebhook(name, Req.Bearer)
-							}
-							if utils.Con.UseWebhook {
-								go func() {
-									_, _, _, searches := utils.GetDroptimes(name)
-									json, _ := BuildWebhook(name, searches, utils.GetHeadUrl(name))
-									err, ok := webhook.Webhook(utils.Con.WebhookURL, json)
-									if err != nil {
-										fmt.Println(utils.Logo(err.Error()))
-									} else if ok {
-										fmt.Println(utils.Logo("Succesfully sent personal webhook!"))
-									}
-								}()
-							}
-							fmt.Println(utils.Logo(fmt.Sprintf("%v claimed %v @ %v\n", Config.Email, name, Req.ResponseDetails.SentAt)))
-							*NameRecvChannel = true
-						case "":
-							Details.Data.Status = "DEAD_PROXY"
-						default:
-							if strings.Contains(Req.ResponseDetails.Body, "error") && strings.Contains(Req.ResponseDetails.Body, "FORBIDDEN") {
-								Details.Data.Status = "CANNOT_NAME_CHANGE:" + Req.ResponseDetails.StatusCode + ":" + Req.Email
-							} else {
-								Details.Data.Status = "UNKNOWN:" + Req.ResponseDetails.StatusCode
-							}
-						}
-					}
-					fmt.Println(utils.Logo(fmt.Sprintf(`%v <%v> ~ [%v] %v <%v>`, name, Req.ResponseDetails.SentAt.Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, Details.Data.Status, Req.Type)))
-				}
-			}
-			Next = New
-		}
-	}
+	app.Run(utils.Logo("@Crumble/root: "))
 }
 
 func UpdateConfig(Email string) {
