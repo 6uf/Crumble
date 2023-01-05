@@ -169,27 +169,25 @@ func main() {
 					if len(utils.Con.Bearers) == 0 && len(utils.Bearer.Details) == 0 {
 						return
 					}
-					cl, name, Changed := false, StrCmd.String("-u"), false
-
-					var Use string
-					fmt.Println(utils.Logo("Timestamp to Unix: [https://www.epochconverter.com/] (make sure to remove the • on the namemc timestamp!)"))
-					fmt.Print(utils.Logo("Use your own unix timestamps: "))
-					fmt.Scan(&Use)
-					var start, end int64
-					if strings.Contains(strings.ToLower(Use), "y") {
-						fmt.Print(utils.Logo("Start: "))
-						fmt.Scan(&start)
-						fmt.Print(utils.Logo("End: "))
-						fmt.Scan(&end)
+					cl, name, Changed, Use, start, end, Force := false, StrCmd.String("-u"), false, "", 0, 0, StrCmd.Bool("--force")
+					if !Force {
+						fmt.Println(utils.Logo("Timestamp to Unix: [https://www.epochconverter.com/] (make sure to remove the • on the namemc timestamp!)"))
+						fmt.Print(utils.Logo("Use your own unix timestamps: "))
+						fmt.Scan(&Use)
+						var start, end int64
+						if strings.Contains(strings.ToLower(Use), "y") {
+							fmt.Print(utils.Logo("Start: "))
+							fmt.Scan(&start)
+							fmt.Print(utils.Logo("End: "))
+							fmt.Scan(&end)
+						}
 					}
 
-					drop := time.Unix(start, 0)
+					drop := time.Unix(int64(start), 0)
 					for time.Now().Before(drop) {
 						fmt.Print(utils.Logo((fmt.Sprintf("[%v] %v                 \r", name, time.Until(drop).Round(time.Second)))))
 						time.Sleep(time.Second * 1)
 					}
-
-					Force := StrCmd.Bool("--force")
 					go func() {
 					Exit:
 						for {
@@ -199,7 +197,7 @@ func main() {
 									cl = true
 									break Exit
 								}
-								if start != 0 && end != 0 && time.Now().After(time.Unix(end, 0)) {
+								if start != 0 && end != 0 && time.Now().After(time.Unix(int64(end), 0)) {
 									Changed = true
 									cl = true
 									break Exit
@@ -215,7 +213,7 @@ Account(s) ~ %v
 Start      ~ %v
 End        ~ %v
 
-`, name, len(utils.Proxy.Proxys), len(utils.Bearer.Details), time.Unix(start, 0), time.Unix(end, 0))))
+`, name, len(utils.Proxy.Proxys), len(utils.Bearer.Details), time.Unix(int64(start), 0), time.Unix(int64(end), 0))))
 					type Proxys_Accs struct {
 						Proxy string
 						Accs  []apiGO.Info
@@ -377,6 +375,21 @@ End        ~ %v
 												}()
 												time.Sleep(5 * time.Millisecond)
 											}
+
+											if data.AccountType == "Giftcard" {
+												if utils.Con.UseMethod {
+													New = Next.Add(5 * time.Second)
+												} else {
+													New = Next.Add(15 * time.Second)
+												}
+											} else {
+												if utils.Con.UseMethod {
+													New = Next.Add(3 * time.Second)
+												} else {
+													New = Next.Add(10 * time.Second)
+												}
+											}
+
 											Next = New
 										}
 									}
