@@ -172,6 +172,7 @@ func main() {
 					cl, name, Changed := false, StrCmd.String("-u"), false
 
 					var Use string
+					fmt.Println(utils.Logo("Timestamp to Unix: [https://www.epochconverter.com/] (make sure to remove the • on the namemc timestamp!)"))
 					fmt.Print(utils.Logo("Use your own unix timestamps: "))
 					fmt.Scan(&Use)
 					var start, end int64
@@ -371,7 +372,7 @@ End        ~ %v
 																}
 															}
 														}
-														fmt.Println(utils.Logo(fmt.Sprintf(`%v <%v> ~ [%v] %v <%v:%v>`, name, time.Now().Format("15:04:05.0000"), resp.StatusCode, Details.Data.Status, data.AccountType, data.Email)))
+														fmt.Println(utils.Logo(fmt.Sprintf(`• %v <%v> ~ [%v] %v <%v:%v>`, name, time.Now().Format("15:04:05.0000"), resp.StatusCode, Details.Data.Status, data.AccountType, data.Email)))
 													}
 												}()
 												time.Sleep(5 * time.Millisecond)
