@@ -21,9 +21,11 @@ import (
 )
 
 func TempCalc(interval int) time.Duration {
-	if utils.Con.UseMethod {
-		return time.Duration(interval/(len(utils.Bearer.Details)*15)) * time.Millisecond
-	}
+	/*
+		if utils.Con.UseMethod {
+			return time.Duration(interval/(len(utils.Bearer.Details)*15)) * time.Millisecond
+		}
+	*/
 	return time.Duration(interval/len(utils.Bearer.Details)) * time.Millisecond
 }
 
@@ -228,7 +230,7 @@ End        ~ %v
 							case "Microsoft":
 								Accs["Microsoft"] = append(Accs["Microsoft"], Proxys_Accs{Proxy: proxy, Accs: []apiGO.Info{utils.Bearer.Details[i]}})
 							case "Giftcard":
-								if gc <= 5 {
+								if gc <= 4 {
 									gc++
 									Accs["Giftcard"][use_gc].Accs = append(Accs["Giftcard"][use_gc].Accs, utils.Bearer.Details[i])
 								} else {
@@ -242,8 +244,8 @@ End        ~ %v
 					go func() {
 						for _, Acc := range append(Accs["Giftcard"], Accs["Microsoft"]...) {
 							for _, data := range Acc.Accs {
-								go func(data apiGO.Info, l int) {
-									sp := strings.Split(Acc.Proxy, ":")
+								go func(data apiGO.Info, l int, proxy string) {
+									sp := strings.Split(proxy, ":")
 									var Proxy func(*http.Request) (*url.URL, error)
 									if len(sp) > 2 {
 										ip, port, user, pass := sp[0], sp[1], sp[2], sp[3]
@@ -285,6 +287,7 @@ End        ~ %v
 												}
 											}
 											time.Sleep(New.Sub(time.Unix(New.Unix()-5, 0)))
+
 											var req *http.Request
 											switch data.AccountType {
 											case "Microsoft":
@@ -296,11 +299,11 @@ End        ~ %v
 											req.Header.Add("Authorization", "Bearer "+data.Bearer)
 											time.Sleep(time.Until(Next))
 											reqamt := 1
-											if utils.Con.UseMethod && data.AccountType != "Microsoft" {
-												reqamt = l
+											if data.AccountType == "Giftcard" && utils.Con.UseMethod {
+												reqamt = 5
 											}
 											for i := 0; i < reqamt; i++ {
-												go func() {
+												go func(req *http.Request) {
 													if resp, err := Client.Do(req); err == nil {
 														body, _ := io.ReadAll(resp.Body)
 														var Details utils.Status
@@ -372,28 +375,19 @@ End        ~ %v
 														}
 														fmt.Println(utils.Logo(fmt.Sprintf(`• %v <%v> ~ [%v] %v <%v:%v>`, name, time.Now().Format("15:04:05.0000"), resp.StatusCode, Details.Data.Status, data.AccountType, data.Email)))
 													}
-												}()
-												time.Sleep(5 * time.Millisecond)
+												}(req)
 											}
 
 											if data.AccountType == "Giftcard" {
-												if utils.Con.UseMethod {
-													New = Next.Add(5 * time.Second)
-												} else {
-													New = Next.Add(15 * time.Second)
-												}
+												New = Next.Add(15 * time.Second)
 											} else {
-												if utils.Con.UseMethod {
-													New = Next.Add(3 * time.Second)
-												} else {
-													New = Next.Add(10 * time.Second)
-												}
+												New = Next.Add(10 * time.Second)
 											}
 
 											Next = New
 										}
 									}
-								}(data, 15/len(Acc.Accs))
+								}(data, 15/len(Acc.Accs), Acc.Proxy)
 								if utils.Con.UseCustomSpread {
 									time.Sleep(time.Duration(utils.Con.Spread) * time.Millisecond)
 								} else {

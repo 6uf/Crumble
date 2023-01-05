@@ -37,7 +37,6 @@ type Config struct {
 	SkinChange         Skin            `json:"skin_config"`
 	UseProxyDuringAuth bool            `json:"useproxysduringauth"`
 	DiscordID          string          `json:"id"`
-	SendWebhook        bool            `json:"sendwebhook"`
 	UseCustomSpread    bool            `json:"use_own_spread_value"`
 	Spread             int64           `json:"spread_ms"`
 	FirstUse           bool            `json:"firstuse"`
