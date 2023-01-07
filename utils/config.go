@@ -49,6 +49,8 @@ func (s *Config) LoadState() {
 	data, err := ReadFile("config.json")
 	if err != nil {
 		s.LoadFromFile()
+		s.GC_ReqAmt = 1
+		s.MFA_ReqAmt = 1
 		s.FirstUse = true
 		s.SkinChange.Variant = "slim"
 		s.SkinChange.Link = "https://textures.minecraft.net/texture/516accb84322ca168a8cd06b4d8cc28e08b31cb0555eee01b64f9175cefe7b75"

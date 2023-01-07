@@ -13,6 +13,15 @@ import (
 	"github.com/6uf/h2"
 )
 
+type Proxys_Accs struct {
+	Proxy string
+	Accs  []apiGO.Info
+}
+
+var Accs map[string][]Proxys_Accs = make(map[string][]Proxys_Accs)
+var Use_gc, Accamt int
+var First_gc bool = true
+
 func AuthAccs() {
 	grabDetails()
 	if len(Con.Bearers) == 0 {
@@ -26,6 +35,7 @@ func AuthAccs() {
 					Bearer:      Accs.Bearer,
 					AccountType: Accs.Type,
 					Email:       Accs.Email,
+					Password:    Accs.Password,
 				})
 			}
 		}
@@ -70,14 +80,14 @@ func grabDetails() {
 						Bearer:      acc_1,
 						Email:       acc_1[0:12],
 						AccountType: apiGO.IsGC(acc_1, &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}),
-						Expires:     int(time.Now().Add(86400000 * time.Second).Unix()),
+						Expires:     int(time.Now().Add(3600000 * time.Second).Unix()),
 					})
 				} else {
 					Bearer.Details = append(Bearer.Details, apiGO.Info{
 						Bearer:      acc_1,
 						Email:       acc_1[0:12],
 						AccountType: apiGO.IsGC(acc_1, nil),
-						Expires:     int(time.Now().Add(86400000 * time.Second).Unix()),
+						Expires:     int(time.Now().Add(3600000 * time.Second).Unix()),
 					})
 				}
 				wgs.Done()
@@ -114,7 +124,7 @@ func grabDetails() {
 							fmt.Println(Logo(fmt.Sprintf("[%v] Succesfully authed %v", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))))
 							Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 								Bearer:       info.Bearer,
-								AuthInterval: 86400,
+								AuthInterval: 3600,
 								AuthedAt:     time.Now().Unix(),
 								Type:         info.AccountType,
 								Email:        info.Email,
@@ -135,7 +145,7 @@ func grabDetails() {
 						fmt.Println(Logo(fmt.Sprintf("[%v] Succesfully authed %v", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))))
 						Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 							Bearer:       info.Bearer,
-							AuthInterval: 86400,
+							AuthInterval: 3600,
 							AuthedAt:     time.Now().Unix(),
 							Type:         info.AccountType,
 							Email:        info.Email,
@@ -186,7 +196,7 @@ func grabDetails() {
 							fmt.Println(Logo(fmt.Sprintf("[%v] Succesfully authed %v", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))))
 							Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 								Bearer:       info.Bearer,
-								AuthInterval: 86400,
+								AuthInterval: 3600,
 								AuthedAt:     time.Now().Unix(),
 								Type:         info.AccountType,
 								Email:        info.Email,
@@ -206,7 +216,7 @@ func grabDetails() {
 						fmt.Println(Logo(fmt.Sprintf("[%v] Succesfully authed %v", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))))
 						Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 							Bearer:       info.Bearer,
-							AuthInterval: 86400,
+							AuthInterval: 3600,
 							AuthedAt:     time.Now().Unix(),
 							Type:         info.AccountType,
 							Email:        info.Email,
@@ -254,7 +264,7 @@ func checkifValid() {
 			wgs.Done()
 		}(Accs)
 	}
-	
+
 	wgs.Wait()
 
 	if len(reAuth) != 0 {
@@ -282,7 +292,7 @@ func checkifValid() {
 							fmt.Println(Logo(fmt.Sprintf("[%v] Succesfully authed %v", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))))
 							Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 								Bearer:       info.Bearer,
-								AuthInterval: 86400,
+								AuthInterval: 3600,
 								AuthedAt:     time.Now().Unix(),
 								Type:         info.AccountType,
 								Email:        info.Email,
@@ -302,7 +312,7 @@ func checkifValid() {
 						fmt.Println(Logo(fmt.Sprintf("[%v] Succesfully authed %v", time.Now().Format("15:04:05.0000"), HashMessage(info.Email, len(info.Email)/4))))
 						Con.Bearers = append(Con.Bearers, apiGO.Bearers{
 							Bearer:       info.Bearer,
-							AuthInterval: 86400,
+							AuthInterval: 3600,
 							AuthedAt:     time.Now().Unix(),
 							Type:         info.AccountType,
 							Email:        info.Email,
@@ -342,88 +352,76 @@ func CheckDupes(strs []string) []string {
 func CheckAccs() {
 	for {
 		time.Sleep(10 * time.Second)
-	Exit:
-		for point, Accs := range Con.Bearers {
-			if time.Now().Unix() > Accs.AuthedAt+Accs.AuthInterval {
-				if len(Proxy.Proxys) > 0 && Con.UseProxyDuringAuth {
+		var wg sync.WaitGroup
+		for _, acc := range Con.Bearers {
+			if time.Now().Unix() > acc.AuthedAt+acc.AuthInterval {
+				wg.Add(1)
+				go func(acc apiGO.Bearers) {
 					ip, port, user, pass := "", "", "", ""
-					switch data := strings.Split(Proxy.CompRand(), ":"); len(data) {
-					case 2:
-						ip = data[0]
-						port = data[1]
-					case 4:
-						ip = data[0]
-						port = data[1]
-						user = data[2]
-						pass = data[3]
+					if len(Proxy.Proxys) > 0 && Con.UseProxyDuringAuth {
+						switch data := strings.Split(Proxy.CompRand(), ":"); len(data) {
+						case 2:
+							ip = data[0]
+							port = data[1]
+						case 4:
+							ip = data[0]
+							port = data[1]
+							user = data[2]
+							pass = data[3]
+						}
 					}
-
-					switch info := apiGO.MS_authentication(Accs.Email, Accs.Password, &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}); true {
+					defer wg.Done()
+					switch info := apiGO.MS_authentication(acc.Email, acc.Password, &apiGO.ProxyMS{IP: ip, Port: port, User: user, Password: pass}); true {
 					case info.Bearer != "" && apiGO.CheckChange(info.Bearer, &h2.ProxyAuth{IP: ip, Port: port, User: user, Password: pass}) && info.Error == "":
-						if Accs.Email == info.Email {
-							Con.Bearers[point] = apiGO.Bearers{
-								Bearer:     info.Bearer,
-								NameChange: true,
-								Type:       info.AccountType,
-								Password:   info.Password,
-								Email:      info.Email,
-								AuthedAt:   time.Now().Unix(),
+						for point, bf := range Con.Bearers {
+							if strings.EqualFold(bf.Email, info.Email) {
+								Con.Bearers[point] = apiGO.Bearers{
+									Bearer:       info.Bearer,
+									NameChange:   true,
+									Type:         info.AccountType,
+									Password:     info.Password,
+									Email:        info.Email,
+									AuthedAt:     time.Now().Unix(),
+									AuthInterval: 3600,
+								}
+								break
 							}
-							for i, Bearers := range Bearer.Details {
-								if strings.EqualFold(Bearers.Email, info.Email) {
-									Bearer.Details[i] = info
+						}
+						for i, Bearers := range Bearer.Details {
+							if strings.EqualFold(Bearers.Email, info.Email) {
+								Bearer.Details[i] = info
+								break
+							}
+						}
+						var Found bool
+						for i, accs := range Accs["Giftcard"] {
+							for e, b := range accs.Accs {
+								if strings.EqualFold(b.Email, info.Email) {
+									Accs["Giftcard"][i].Accs[e] = info
+									Found = true
 									break
 								}
 							}
-							Con.SaveConfig()
-							Con.LoadState()
-							break Exit
 						}
-					default:
-						var new []apiGO.Bearers
-						for _, i := range Con.Bearers {
-							if i.Email != Accs.Email {
-								new = append(new, i)
-							}
-						}
-						Con.Bearers = new
-						Con.SaveConfig()
-						Con.LoadState()
-					}
-				} else {
-					switch info := apiGO.MS_authentication(Accs.Email, Accs.Password, nil); true {
-					case info.Bearer != "" && apiGO.CheckChange(info.Bearer, nil) && info.Error == "":
-						if Accs.Email == info.Email {
-							Con.Bearers[point] = apiGO.Bearers{
-								Bearer:     info.Bearer,
-								NameChange: true,
-								Type:       info.AccountType,
-								Password:   info.Password,
-								Email:      info.Email,
-								AuthedAt:   time.Now().Unix(),
-							}
-							for i, Bearers := range Bearer.Details {
-								if strings.EqualFold(Bearers.Email, info.Email) {
-									Bearer.Details[i] = info
-									break
+						if !Found {
+							for i, accs := range Accs["Microsoft"] {
+								for e, b := range accs.Accs {
+									if strings.EqualFold(b.Email, info.Email) {
+										Accs["Microsoft"][i].Accs[e] = info
+										Found = true
+										break
+									}
 								}
 							}
-							Con.SaveConfig()
-							Con.LoadState()
 						}
-					default:
-						var new []apiGO.Bearers
-						for _, i := range Con.Bearers {
-							if i.Email != Accs.Email {
-								new = append(new, i)
-							}
-						}
-						Con.Bearers = new
-						Con.SaveConfig()
-						Con.LoadState()
 					}
-				}
+				}(acc)
 			}
 		}
+
+		wg.Wait()
+
+		Con.SaveConfig()
+		Con.LoadState()
 	}
 }

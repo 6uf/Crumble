@@ -3,7 +3,6 @@ package utils
 import (
 	"crypto/x509"
 	"main/webhook"
-	"time"
 
 	"github.com/6uf/apiGO"
 )
@@ -33,23 +32,19 @@ type Status struct {
 
 type Config struct {
 	Gradient           []Values        `json:"gradient"`
+	GC_ReqAmt          int             `json:"amt_reqs_per_gc_acc"`
+	MFA_ReqAmt         int             `json:"amt_reqs_per_mfa_acc"`
 	UseMethod          bool            `json:"use_method_rlbypass"`
-	SkinChange         Skin            `json:"skin_config"`
 	UseProxyDuringAuth bool            `json:"useproxysduringauth"`
-	DiscordID          string          `json:"id"`
 	UseCustomSpread    bool            `json:"use_own_spread_value"`
 	Spread             int64           `json:"spread_ms"`
 	FirstUse           bool            `json:"firstuse"`
+	DownloadedPW       bool            `json:"pwinstalled"`
 	UseWebhook         bool            `json:"sendpersonalwhonsnipe"`
 	WebhookURL         string          `json:"webhook_url"`
 	Webhook            webhook.Web     `json:"webhook_json"`
+	SkinChange         Skin            `json:"skin_config"`
 	Bearers            []apiGO.Bearers `json:"Bearers"`
-}
-
-type Gradient struct {
-	RGB1 Values `json:"rgb"`
-	RGB2 Values `json:"rgb2"`
-	HSL  Values `json:"hsl"`
 }
 
 type Values struct {
@@ -79,13 +74,4 @@ type UserINFO struct {
 type Skin struct {
 	Link    string `json:"url"`
 	Variant string `json:"variant"`
-}
-
-type T struct {
-	F []TimeFluc
-}
-
-type TimeFluc struct {
-	T1   time.Time
-	Err1 error
 }

@@ -5,28 +5,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"main/utils"
 	"main/webhook"
-	"net/http"
-	"net/url"
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/6uf/StrCmd"
 	"github.com/6uf/apiGO"
 	"github.com/bwmarrin/discordgo"
+	"github.com/playwright-community/playwright-go"
 )
 
-func TempCalc(interval int) time.Duration {
-	/*
-		if utils.Con.UseMethod {
-			return time.Duration(interval/(len(utils.Bearer.Details)*15)) * time.Millisecond
-		}
-	*/
-	return time.Duration(interval/len(utils.Bearer.Details)) * time.Millisecond
+func TempCalc(interval, reqamt, accamt int) time.Duration {
+	return time.Duration((interval*reqamt)/accamt) * time.Millisecond
 }
 
 func BuildWebhook(name, searches, headurl string) ([]byte, webhook.Web) {
@@ -34,7 +28,6 @@ func BuildWebhook(name, searches, headurl string) ([]byte, webhook.Web) {
 	for i := range new.Embeds {
 		new.Embeds[i].Description = strings.Replace(new.Embeds[i].Description, "{name}", name, -1)
 		new.Embeds[i].Description = strings.Replace(new.Embeds[i].Description, "{searches}", searches, -1)
-		new.Embeds[i].Description = strings.Replace(new.Embeds[i].Description, "{id}", utils.Con.DiscordID, -1)
 		new.Embeds[i].Author.Name = strings.Replace(new.Embeds[i].Author.Name, "{name}", name, -1)
 		new.Embeds[i].Author.Name = strings.Replace(new.Embeds[i].Author.Name, "{searches}", searches, -1)
 		new.Embeds[i].Author.IconURL = strings.Replace(new.Embeds[i].Author.IconURL, "{headurl}", headurl, -1)
@@ -50,11 +43,9 @@ func BuildWebhook(name, searches, headurl string) ([]byte, webhook.Web) {
 			field.Name = strings.Replace(field.Name, "{headurl}", headurl, -1)
 			field.Name = strings.Replace(field.Name, "{searches}", searches, -1)
 			field.Name = strings.Replace(field.Name, "{name}", name, -1)
-			field.Name = strings.Replace(field.Name, "{id}", utils.Con.DiscordID, -1)
 			field.Value = strings.Replace(field.Value, "{headurl}", headurl, -1)
 			field.Value = strings.Replace(field.Value, "{searches}", searches, -1)
 			field.Value = strings.Replace(field.Value, "{name}", name, -1)
-			field.Value = strings.Replace(field.Value, "{id}", utils.Con.DiscordID, -1)
 			new.Embeds[i].Fields[e] = field
 		}
 	}
@@ -126,6 +117,14 @@ func init() {
 	for _, rgb := range utils.Con.Gradient {
 		utils.RGB = append(utils.RGB, fmt.Sprintf("rgb(%v,%v,%v)", rgb.R, rgb.G, rgb.B))
 	}
+	if !utils.Con.DownloadedPW {
+		if err := playwright.Install(&playwright.RunOptions{Verbose: true}); err == nil {
+			utils.Con.DownloadedPW = true
+			utils.Con.SaveConfig()
+			utils.Con.LoadState()
+		}
+	}
+
 	fmt.Print(utils.Logo(`_________                        ______ ______     
 __  ____/__________  ________ ______  /____  /____ 
 _  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
@@ -133,12 +132,6 @@ _  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
 \____/  /_/    \__,_/ /_/ /_/ /_//_.___//_/  \___/ 
 
 `))
-	if utils.Con.DiscordID == "" {
-		fmt.Print(utils.Logo("Discord ID: "))
-		fmt.Scan(&utils.Con.DiscordID)
-		utils.Con.SaveConfig()
-		utils.Con.LoadState()
-	}
 	if utils.Con.FirstUse {
 		fmt.Print(utils.Logo("Use proxys for authentication? : [YES/NO] > "))
 		var ProxyAuth string
@@ -158,6 +151,53 @@ _  /    __  ___/  / / /_  __ '__ \_  __ \_  /_  _ \
 	utils.Proxy.Setup()
 	utils.AuthAccs()
 	go utils.CheckAccs()
+	var use_proxy int
+
+	for _, bearer := range utils.Bearer.Details {
+		if use_proxy >= len(utils.Proxy.Proxys) && len(utils.Proxy.Proxys) < len(utils.Bearer.Details) {
+			break
+		}
+		switch bearer.AccountType {
+		case "Microsoft":
+			utils.Accs["Microsoft"] = append(utils.Accs["Microsoft"], utils.Proxys_Accs{Proxy: utils.Proxy.Proxys[use_proxy], Accs: []apiGO.Info{bearer}})
+			utils.Accamt++
+		case "Giftcard":
+			if utils.First_gc {
+				utils.Accs["Giftcard"] = []utils.Proxys_Accs{{Proxy: utils.Proxy.Proxys[use_proxy]}}
+				utils.First_gc = false
+				use_proxy++
+			}
+			if len(utils.Accs["Giftcard"][utils.Use_gc].Accs) != 5/utils.Con.GC_ReqAmt {
+				utils.Accs["Giftcard"][utils.Use_gc].Accs = append(utils.Accs["Giftcard"][utils.Use_gc].Accs, bearer)
+				utils.Accamt++
+			} else {
+				utils.Use_gc++
+				utils.Accamt++
+				utils.Accs["Giftcard"] = append(utils.Accs["Giftcard"], utils.Proxys_Accs{Proxy: utils.Proxy.Proxys[use_proxy], Accs: []apiGO.Info{bearer}})
+				use_proxy++
+			}
+		}
+	}
+
+	fmt.Print(utils.Logo(fmt.Sprintf(`i Accounts Loaded  > <%v>
+i Proxies Loaded   > <%v>
+i Accounts in use  > <%v>
+i Proxys in use    > <%v>
+i Accounts Details:
+ - GC's Per Proxy  > <%v>
+ - MFA's Per Proxy > <%v>
+ - Req per GC      > <%v>
+ - Req per MFA     > <%v>
+
+`,
+		len(utils.Bearer.Details),
+		len(utils.Proxy.Proxys),
+		utils.Accamt,
+		use_proxy,
+		5/utils.Con.GC_ReqAmt,
+		1,
+		utils.Con.GC_ReqAmt,
+		utils.Con.MFA_ReqAmt)))
 }
 
 func main() {
@@ -165,6 +205,89 @@ func main() {
 		Version:        "v1.3.00-CR",
 		AppDescription: "Crumble is a open source minecraft turbo!",
 		Commands: map[string]StrCmd.Command{
+			"reload": {
+				Action: func() {
+					if pw, err := playwright.Run(); err == nil {
+						if browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+							Channel:  &[]string{"chrome"}[0],
+							Headless: &[]bool{true}[0],
+						}); err == nil {
+							var wg sync.WaitGroup
+							for i, acc := range utils.Bearer.Details {
+								wg.Add(1)
+								go func(acc apiGO.Info, i int) {
+									defer wg.Done()
+									if page, err := browser.NewPage(playwright.BrowserNewContextOptions{
+										UserAgent: &[]string{"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"}[0],
+									}); err == nil {
+										if r, err := page.Goto("https://www.minecraft.net/en-us/login"); err == nil {
+											b, _ := page.Content()
+											if strings.Contains(b, `You don't have permission to access "http://www.minecraft.net/en-us/login" on this server.`) {
+												fmt.Println(utils.Logo(fmt.Sprintf("<%v> %v Currently Ratelimited", i, r.Status())))
+											} else {
+												if err := page.Click("#main-content > div.page-section.page-section--first.site-content--hide-footer.bg-img-height.bg-globe.d-flex.align-items-center > div > div > div > div.bg-white.py-4 > div:nth-child(1) > div > a"); err != nil {
+													for i := 0; i < 5; i++ {
+														time.Sleep(30 * time.Second)
+														if err := page.Click("#main-content > div.page-section.page-section--first.site-content--hide-footer.bg-img-height.bg-globe.d-flex.align-items-center > div > div > div > div.bg-white.py-4 > div:nth-child(1) > div > a"); err == nil {
+															break
+														}
+													}
+												} else {
+													time.Sleep(3 * time.Second)
+													page.Fill("#i0116", acc.Email)
+													fmt.Println(utils.Logo(fmt.Sprintf("<%v> i Added email to input.. "+acc.Email, i)))
+													time.Sleep(1 * time.Second)
+													page.Click("#idSIButton9")
+													fmt.Println(utils.Logo(fmt.Sprintf("<%v> i Submitted email.. "+acc.Email, i)))
+													time.Sleep(1 * time.Second)
+													page.Fill("#i0118", acc.Password)
+													fmt.Println(utils.Logo(fmt.Sprintf("<%v> i Added password to input.. "+acc.Email, i)))
+													time.Sleep(1 * time.Second)
+													page.Click("#idSIButton9")
+													fmt.Println(utils.Logo(fmt.Sprintf("<%v> i Submitted password.. "+acc.Email, i)))
+
+													time.Sleep(2 * time.Second)
+													if err := page.Click("#iShowSkip"); err == nil {
+														fmt.Println(utils.Logo("i Clicked skip for 7 days.. " + acc.Email))
+														time.Sleep(1 * time.Second)
+														page.Click("#idBtn_Back")
+														time.Sleep(1 * time.Second)
+														page.Click("#iCancel")
+														time.Sleep(1 * time.Second)
+														page.Click("#mc-globalhead__nav-login-dropdown-1 > li:nth-child(2) > a")
+														fmt.Println(utils.Logo(fmt.Sprintf("<%v> i Logged out of minecraft.. "+acc.Email, i)))
+														time.Sleep(3 * time.Second)
+														page.Close()
+														fmt.Println(utils.Logo(fmt.Sprintf("<%v> i Succesfully reloaded "+acc.Email, i)))
+													} else {
+														time.Sleep(1 * time.Second)
+														page.Click("#idBtn_Back")
+														time.Sleep(1 * time.Second)
+														page.Click("#iCancel")
+														time.Sleep(1 * time.Second)
+														page.Click("#mc-globalhead__nav-login-dropdown-1 > li:nth-child(2) > a")
+														fmt.Println(utils.Logo("i Logged out of minecraft.. " + acc.Email))
+														time.Sleep(3 * time.Second)
+														page.Close()
+														fmt.Println(utils.Logo("Succesfully reloaded " + acc.Email))
+													}
+												}
+											}
+
+										} else {
+											fmt.Println(err)
+										}
+									} else {
+										fmt.Println(err)
+									}
+								}(acc, i)
+								time.Sleep(3 * time.Second)
+							}
+							wg.Wait()
+						}
+					}
+				},
+			},
 			"snipe": {
 				Description: "Main sniper command, targets only one ign that is passed through with -u",
 				Action: func() {
@@ -174,7 +297,7 @@ func main() {
 					cl, name, Changed, Use, start, end, Force := false, StrCmd.String("-u"), false, "", 0, 0, StrCmd.Bool("--force")
 					if !Force {
 						fmt.Println(utils.Logo("Timestamp to Unix: [https://www.epochconverter.com/] (make sure to remove the • on the namemc timestamp!)"))
-						fmt.Print(utils.Logo("Use your own unix timestamps: "))
+						fmt.Print(utils.Logo("Use your own unix timestamps [y/n]: "))
 						fmt.Scan(&Use)
 						var start, end int64
 						if strings.Contains(strings.ToLower(Use), "y") {
@@ -216,190 +339,63 @@ Start      ~ %v
 End        ~ %v
 
 `, name, len(utils.Proxy.Proxys), len(utils.Bearer.Details), time.Unix(int64(start), 0), time.Unix(int64(end), 0))))
-					type Proxys_Accs struct {
-						Proxy string
-						Accs  []apiGO.Info
-					}
-					var Accs map[string][]Proxys_Accs = make(map[string][]Proxys_Accs)
-					Accs["Giftcard"] = []Proxys_Accs{{Proxy: utils.Proxy.CompRand()}}
-					Accs["Microsoft"] = []Proxys_Accs{{Proxy: utils.Proxy.CompRand()}}
-					var gc, use_gc int
-					for i, proxy := range utils.Proxy.Proxys {
-						if i < len(utils.Bearer.Details) {
-							switch utils.Bearer.Details[i].AccountType {
-							case "Microsoft":
-								Accs["Microsoft"] = append(Accs["Microsoft"], Proxys_Accs{Proxy: proxy, Accs: []apiGO.Info{utils.Bearer.Details[i]}})
-							case "Giftcard":
-								if gc <= 4 {
-									gc++
-									Accs["Giftcard"][use_gc].Accs = append(Accs["Giftcard"][use_gc].Accs, utils.Bearer.Details[i])
+
+					if utils.Con.UseMethod {
+						for e, p := range utils.Proxy.Proxys {
+							if len(utils.Bearer.Details) == e {
+								break
+							} else {
+								Spread, Amt := time.Millisecond, time.Millisecond
+								if utils.Bearer.Details[e].AccountType == "Giftcard" {
+									Amt = 60060 * time.Millisecond
+									if utils.Con.UseCustomSpread {
+										Spread = time.Duration(utils.Con.Spread) * time.Millisecond
+									} else {
+										Spread = TempCalc(15050, 15, len(utils.Bearer.Details))
+									}
 								} else {
-									use_gc++
-									gc = 0
-									Accs["Giftcard"] = append(Accs["Giftcard"], Proxys_Accs{Proxy: proxy, Accs: []apiGO.Info{utils.Bearer.Details[i]}})
+									Amt = 10050 * time.Millisecond
+									if utils.Con.UseCustomSpread {
+										Spread = time.Duration(utils.Con.Spread) * time.Millisecond
+									} else {
+										Spread = TempCalc(10050, utils.Con.MFA_ReqAmt, len(utils.Bearer.Details))
+									}
 								}
+								go Snipe(utils.Bearer.Details[e], Amt, name, &Changed, p)
+								time.Sleep(Spread)
 							}
 						}
-					}
-					go func() {
-						for _, Acc := range append(Accs["Giftcard"], Accs["Microsoft"]...) {
-							for _, data := range Acc.Accs {
-								go func(data apiGO.Info, l int, proxy string) {
-									sp := strings.Split(proxy, ":")
-									var Proxy func(*http.Request) (*url.URL, error)
-									if len(sp) > 2 {
-										ip, port, user, pass := sp[0], sp[1], sp[2], sp[3]
-										Proxy = http.ProxyURL(&url.URL{Scheme: "http", User: url.UserPassword(user, pass), Host: ip + ":" + port})
-									} else {
-										ip, port := sp[0], sp[1]
-										Proxy = http.ProxyURL(&url.URL{Scheme: "http", Host: ip + ":" + port})
-									}
-									Client := http.Client{
-										Transport: &http.Transport{
-											Proxy: Proxy,
-										},
-									}
-									Next := time.Now()
-								Exit:
-									for {
-										switch true {
-										case Changed:
-											break Exit
-										default:
-											var New time.Time
-											if data.AccountType == "Giftcard" {
-												if utils.Con.UseMethod {
-													New = Next.Add(5 * time.Second)
-												} else {
-													New = Next.Add(15 * time.Second)
-												}
-											} else {
-												if utils.Con.UseMethod {
-													New = Next.Add(3 * time.Second)
-												} else {
-													New = Next.Add(10 * time.Second)
-												}
-											}
-											for _, Acc := range utils.Bearer.Details {
-												if strings.EqualFold(Acc.Email, data.Email) {
-													data = Acc
-													break
-												}
-											}
-											time.Sleep(New.Sub(time.Unix(New.Unix()-5, 0)))
-
-											var req *http.Request
-											switch data.AccountType {
-											case "Microsoft":
-												req, _ = http.NewRequest("PUT", "https://api.minecraftservices.com/minecraft/profile/name/"+name, nil)
-											case "Giftcard":
-												var JSON string = fmt.Sprintf(`{"profileName":"%v"}`, name)
-												req, _ = http.NewRequest("POST", "https://api.minecraftservices.com/minecraft/profile//", bytes.NewBuffer([]byte(JSON)))
-											}
-											req.Header.Add("Authorization", "Bearer "+data.Bearer)
-											time.Sleep(time.Until(Next))
-											reqamt := 1
-											if data.AccountType == "Giftcard" && utils.Con.UseMethod {
-												reqamt = 5
-											}
-											for i := 0; i < reqamt; i++ {
-												go func(req *http.Request) {
-													if resp, err := Client.Do(req); err == nil {
-														body, _ := io.ReadAll(resp.Body)
-														var Details utils.Status
-
-														switch true {
-														case strings.Contains(string(body), "ALREADY_REGISTERED"):
-															Details.Data.Status = "ALREADY_REGISTERED"
-														case strings.Contains(string(body), "NOT_ENTITLED"):
-															Details.Data.Status = "NOT_ENTITLED"
-														case strings.Contains(string(body), "DUPLICATE"):
-															Details.Data.Status = "DUPLICATE"
-														case strings.Contains(string(body), "NOT_ALLOWED"):
-															Details.Data.Status = "NOT_ALLOWED"
-															fmt.Println(utils.Logo(name + " is currently blocked!"))
-															return
-														default:
-															switch resp.StatusCode {
-															case 429:
-																Details.Data.Status = "RATE_LIMITED"
-																/*
-																	sp := strings.Split(utils.Proxy.CompRand(), ":")
-																	var Proxy func(*http.Request) (*url.URL, error)
-																	if len(sp) > 2 {
-																		ip, port, user, pass := sp[0], sp[1], sp[2], sp[3]
-																		Proxy = http.ProxyURL(&url.URL{Scheme: "http", User: url.UserPassword(user, pass), Host: ip + ":" + port})
-																	} else {
-																		ip, port := sp[0], sp[1]
-																		Proxy = http.ProxyURL(&url.URL{Scheme: "http", Host: ip + ":" + port})
-																	}
-																	Client.Transport = &http.Transport{Proxy: Proxy}
-																*/
-															case 401:
-																Details.Data.Status = "UNAUTHORIZED"
-															case 404:
-																for i, Acc := range utils.Con.Bearers {
-																	if strings.EqualFold(Acc.Email, data.Email) {
-																		utils.Con.Bearers[i].Type = "Giftcard"
-																		data.AccountType = "Giftcard"
-																		utils.Con.SaveConfig()
-																		utils.Con.LoadState()
-																		break
-																	}
-																}
-															case 200:
-																Details.Data.Status = "CLAIMED"
-																if utils.Con.SkinChange.Link != "" {
-																	go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), data.Bearer)
-																}
-																if utils.Con.UseWebhook {
-																	go func() {
-																		json, _ := BuildWebhook(name, "0", "")
-																		err, ok := webhook.Webhook(utils.Con.WebhookURL, json)
-																		if err != nil {
-																			fmt.Println(utils.Logo(err.Error()))
-																		} else if ok {
-																			fmt.Println(utils.Logo("Succesfully sent personal webhook!"))
-																		}
-																	}()
-																}
-																fmt.Println(utils.Logo(fmt.Sprintf("%v claimed %v @ %v\n", data.Email, name, time.Now().Format("05.0000"))))
-																Changed = true
-															default:
-																if strings.Contains(string(body), "error") && strings.Contains(string(body), "FORBIDDEN") {
-																	Details.Data.Status = "CANNOT_NAME_CHANGE:" + resp.Status + ":" + data.Email
-																} else {
-																	Details.Data.Status = "UNKNOWN:" + resp.Status
-																}
-															}
-														}
-														fmt.Println(utils.Logo(fmt.Sprintf(`• %v <%v> ~ [%v] %v <%v:%v>`, name, time.Now().Format("15:04:05.0000"), resp.StatusCode, Details.Data.Status, data.AccountType, data.Email)))
-													}
-												}(req)
-											}
-
-											if data.AccountType == "Giftcard" {
-												New = Next.Add(15 * time.Second)
-											} else {
-												New = Next.Add(10 * time.Second)
-											}
-
-											Next = New
-										}
-									}
-								}(data, 15/len(Acc.Accs), Acc.Proxy)
+					} else {
+						go func() {
+							for _, Acc := range utils.Accs["Giftcard"] {
+								Spread := time.Millisecond
 								if utils.Con.UseCustomSpread {
-									time.Sleep(time.Duration(utils.Con.Spread) * time.Millisecond)
+									Spread = time.Duration(utils.Con.Spread) * time.Millisecond
 								} else {
-									if data.AccountType == "Giftcard" {
-										time.Sleep(TempCalc(15000))
-									} else {
-										time.Sleep(TempCalc(10000))
-									}
+									Spread = TempCalc(15050, utils.Con.GC_ReqAmt, utils.Accamt)
+								}
+								for _, data := range Acc.Accs {
+									go Snipe(data, time.Duration(15050*utils.Con.GC_ReqAmt)*time.Millisecond, name, &Changed, Acc.Proxy)
+									time.Sleep(Spread)
 								}
 							}
-						}
-					}()
+						}()
+						go func() {
+							for _, Acc := range utils.Accs["Microsoft"] {
+								Spread := time.Millisecond
+								if utils.Con.UseCustomSpread {
+									Spread = time.Duration(utils.Con.Spread) * time.Millisecond
+								} else {
+									Spread = TempCalc(10050, utils.Con.MFA_ReqAmt, utils.Accamt)
+								}
+								for _, data := range Acc.Accs {
+									go Snipe(data, time.Duration(10050*utils.Con.MFA_ReqAmt)*time.Millisecond, name, &Changed, Acc.Proxy)
+									time.Sleep(Spread)
+								}
+							}
+						}()
+					}
+
 				Exit:
 					for {
 						if cl {
@@ -418,6 +414,11 @@ End        ~ %v
 		},
 	}
 	app.Run(utils.Logo("@Crumble/root: "))
+}
+
+func HashEmailClean(email string) string {
+	e := strings.Split(email, "@")[0] // stfu
+	return strings.Repeat("⋅", 3) + e[len(e)-4:]
 }
 
 func UpdateConfig(Email string) {
@@ -445,4 +446,176 @@ func UpdateConfig(Email string) {
 		}
 	}
 	os.WriteFile("accounts.txt", []byte(strings.Join(N, "\n")), 0644)
+}
+
+func ReturnPayload(acc, bearer, name string) string {
+	if acc == "Giftcard" {
+		var JSON string = fmt.Sprintf(`{"profileName":"%v"}`, name)
+		if utils.Con.UseMethod {
+			return fmt.Sprintf("POST https://minecraftapi-bef7bxczg0amd8ef.z01.azurefd.net/minecraft/profile// HTTP/1.1\r\nHost: minecraftapi-bef7bxczg0amd8ef.z01.azurefd.net\r\nConnection: open\r\nContent-Length:%v\r\nContent-Type: application/json\r\nAccept: application/json\r\nAuthorization: Bearer %v\r\n\r\n%v\r\n", len(JSON), bearer, JSON)
+		} else {
+			return fmt.Sprintf("POST /minecraft/profile HTTP/1.1\r\nHost: minecraftapi-bef7bxczg0amd8ef.z01.azurefd.net\r\nConnection: open\r\nContent-Length:%v\r\nContent-Type: application/json\r\nAccept: application/json\r\nAuthorization: Bearer %v\r\n\r\n%v\r\n", len(JSON), bearer, JSON)
+		}
+	} else {
+		return "PUT /minecraft/profile/name/" + name + " HTTP/1.1\r\nHost: minecraftapi-bef7bxczg0amd8ef.z01.azurefd.net\r\nConnection: open\r\nUser-Agent: MCSN/1.0\r\nContent-Length:0\r\nAuthorization: Bearer " + bearer + "\r\n"
+	}
+}
+
+func Snipe(Config apiGO.Info, Spread time.Duration, name string, NameRecvChannel *bool, proxy string) {
+	Next := time.Now()
+Exit:
+	for {
+		switch true {
+		case *NameRecvChannel:
+			break Exit
+		default:
+			New := Next.Add(Spread)
+			for _, Acc := range utils.Bearer.Details {
+				if strings.EqualFold(Acc.Email, Config.Email) {
+					Config = Acc
+					break
+				}
+			}
+			time.Sleep(New.Sub(time.Unix(New.Unix()-5, 0)))
+			if Proxy, ok := utils.Connect(proxy); ok {
+				var Payload string = ReturnPayload(Config.AccountType, Config.Bearer, name)
+				time.Sleep(time.Until(Next))
+				if Payload != "" && !*NameRecvChannel {
+					reqamt := 1
+					if utils.Con.UseMethod && Config.AccountType == "Giftcard" {
+						reqamt = 15
+					} else {
+						switch Config.AccountType {
+						case "Giftcard":
+							reqamt = utils.Con.GC_ReqAmt
+						case "Microsoft":
+							reqamt = utils.Con.MFA_ReqAmt
+						}
+					}
+					var wg sync.WaitGroup
+					for i := 0; i < reqamt; i++ {
+						wg.Add(1)
+						go func() {
+							defer wg.Done()
+							Req := apiGO.Details{ResponseDetails: apiGO.SocketSending(Proxy, Payload), Bearer: Config.Bearer, Email: Config.Email, Type: Config.AccountType}
+							var Status string
+							switch true {
+							case strings.Contains(Req.ResponseDetails.Body, "ALREADY_REGISTERED"):
+								Status = "unusable_account"
+							case strings.Contains(Req.ResponseDetails.Body, "NOT_ENTITLED"):
+								Status = "unusable_account"
+								/*
+									var ip, port, user, pass string
+									switch p := strings.Split(proxy, ":"); len(p) {
+									case 2:
+										ip, port = p[0], p[1]
+									case 4:
+										ip, port, user, pass = p[0], p[1], p[2], p[3]
+									}
+									ReloadAcc(Config.Email, Config.Password, ip, port, user, pass)
+								*/
+							default:
+								switch Req.ResponseDetails.StatusCode {
+								case "429":
+									//proxy = utils.Proxy.CompRand()
+								case "200":
+									Status = "claimed"
+									if utils.Con.SkinChange.Link != "" {
+										go apiGO.ChangeSkin(apiGO.JsonValue(utils.Con.SkinChange), Config.Bearer)
+									}
+									if utils.Con.UseWebhook {
+										go func() {
+											json, _ := BuildWebhook(name, "0", "")
+											err, ok := webhook.Webhook(utils.Con.WebhookURL, json)
+											if err != nil {
+												fmt.Println(utils.Logo(err.Error()))
+											} else if ok {
+												fmt.Println(utils.Logo("Succesfully sent personal webhook!"))
+											}
+										}()
+									}
+									fmt.Println(utils.Logo(fmt.Sprintf("⑇ %v claimed %v @ %v\n", Config.Email, name, time.Now().Format("05.0000"))))
+									*NameRecvChannel = true
+									return
+								}
+							}
+							if Status == "" {
+								Status = "unavailable"
+							}
+							fmt.Println(utils.Logo(fmt.Sprintf(`✗ <%v> [%v] %v ⑇ %v %v ‥ %v`, time.Now().Format("15:04:05.0000"), Req.ResponseDetails.StatusCode, name, Status, HashEmailClean(Config.Email), strings.Split(proxy, ":")[0])))
+						}()
+					}
+					wg.Wait()
+				}
+			}
+			Next = New
+		}
+	}
+}
+
+func ReloadAcc(email, password, ip, port, user, pass string) {
+	if pw, err := playwright.Run(); err == nil {
+		if browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+			Channel:  &[]string{"chrome"}[0],
+			Headless: &[]bool{true}[0],
+			Proxy: &playwright.BrowserTypeLaunchOptionsProxy{
+				Server:   playwright.String(fmt.Sprintf("http://%v:%v", ip, port)),
+				Username: playwright.String(user),
+				Password: playwright.String(pass),
+			},
+		}); err == nil {
+			if page, err := browser.NewPage(playwright.BrowserNewContextOptions{
+				UserAgent: &[]string{"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"}[0],
+			}); err == nil {
+				if _, err := page.Goto("https://www.minecraft.net/en-us/login"); err == nil {
+					b, _ := page.Content()
+					if !strings.Contains(b, `You don't have permission to access "http://www.minecraft.net/en-us/login" on this server.`) {
+						if err := page.Click("#main-content > div.page-section.page-section--first.site-content--hide-footer.bg-img-height.bg-globe.d-flex.align-items-center > div > div > div > div.bg-white.py-4 > div:nth-child(1) > div > a"); err != nil {
+							for i := 0; i < 5; i++ {
+								time.Sleep(30 * time.Second)
+								if err := page.Click("#main-content > div.page-section.page-section--first.site-content--hide-footer.bg-img-height.bg-globe.d-flex.align-items-center > div > div > div > div.bg-white.py-4 > div:nth-child(1) > div > a"); err == nil {
+									break
+								}
+							}
+						} else {
+							time.Sleep(3 * time.Second)
+							page.Fill("#i0116", email)
+							time.Sleep(1 * time.Second)
+							page.Click("#idSIButton9")
+							time.Sleep(1 * time.Second)
+							page.Fill("#i0118", password)
+							time.Sleep(1 * time.Second)
+							page.Click("#idSIButton9")
+
+							time.Sleep(2 * time.Second)
+							if err := page.Click("#iShowSkip"); err == nil {
+								time.Sleep(1 * time.Second)
+								page.Click("#idBtn_Back")
+								time.Sleep(1 * time.Second)
+								page.Click("#iCancel")
+								time.Sleep(1 * time.Second)
+								page.Click("#mc-globalhead__nav-login-dropdown-1 > li:nth-child(2) > a")
+								time.Sleep(3 * time.Second)
+								page.Close()
+							} else {
+								time.Sleep(1 * time.Second)
+								page.Click("#idBtn_Back")
+								time.Sleep(1 * time.Second)
+								page.Click("#iCancel")
+								time.Sleep(1 * time.Second)
+								page.Click("#mc-globalhead__nav-login-dropdown-1 > li:nth-child(2) > a")
+								time.Sleep(3 * time.Second)
+								page.Close()
+							}
+						}
+					}
+
+				} else {
+					fmt.Println(err)
+				}
+			} else {
+				fmt.Println(err)
+			}
+		}
+	}
 }
